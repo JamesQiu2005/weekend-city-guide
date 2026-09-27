@@ -66,7 +66,7 @@ const ICON = {
   drag: sv('<path d="M5 9h14M5 15h14"/>'),
   spark: sv('<path d="M12 3v5M12 16v5M3 12h5M16 12h5M6 6l3 3M15 15l3 3M18 6l-3 3M9 15l-3 3"/>'),
 };
-const VIS = { private: ["lock", "私密", "只有你自己能看到"], link: ["link", "好友", "拿到链接的人才能看、才能加入"], public: ["globe", "公开", "出现在「发现」和地图上，完成后就是一篇攻略"] };
+const VIS = { private: ["lock", "私密", "只有你自己能看到"], link: ["link", "链接可见", "拿到链接的人才能看、才能加入（还没有好友关系）"], public: ["globe", "公开", "出现在「发现」和地图上，完成后就是一篇攻略"] };
 
 // ---------- v0.1 → v0.2 迁移（逻辑不变） ----------
 function migrateV1() {
@@ -126,7 +126,7 @@ const S = {
   saves: LS.get(KEYS.saves, {}),
   loc: (() => { const l = LS.get(KEYS.loc, null); return l && Date.now() - l.at < 864e5 ? l : null; })(),
   wx: null,
-  ui: { chip: "为你推荐", mapChip: "全部", q: "", searching: false, sessSeg: "planning", meSeg: "trail" },
+  ui: { layer: "rec", cond: null, mapChip: "全部", q: "", searching: false, sessSeg: "planning", meSeg: "trail" },
 };
 function persist(k) { if (!LS.set(KEYS[k], S[k])) toast("本地存储已满，试试少传几张图"); }
 
@@ -297,20 +297,28 @@ async function loadWeather() {
 }
 
 // ---------- 推荐打分（逻辑不变；理由改成一句人话） ----------
+// 返回 { rain, label }；天气还没拿到时返回 null（不下结论）
 function rainFor(p) {
-  if (!S.wx) return 0;
-  const sat = S.wx.sat?.rain ?? 0, sun = S.wx.sun?.rain ?? 0;
-  return p.days.length === 1 ? (p.days[0] === "sat" ? sat : sun) : Math.min(sat, sun);
+  if (!S.wx) return null;
+  const sat = S.wx.sat?.rain, sun = S.wx.sun?.rain;
+  if (p.days.length === 1) { const d = p.days[0], r = d === "sat" ? sat : sun; return r == null ? null : { rain: r, label: d === "sat" ? "周六" : "周日" }; }
+  if (sat == null && sun == null) return null;
+  if (sat == null || sun == null) return { rain: sat ?? sun, label: sat != null ? "周六" : "周日" };
+  if (Math.min(sat, sun) > 50) return { rain: Math.min(sat, sun), label: "周末两天" };
+  return sat <= sun ? { rain: sat, label: "周六" } : { rain: sun, label: "周日" };
 }
-function score(p, prefs = S.prefs, rainOverride) {
+// wxOverride：{ rain, label } 或 null（未知）；不传则用发现页的周末天气
+function score(p, prefs = S.prefs, wxOverride) {
   const reasons = [];
   let sc = 0;
-  if (prefs.likes.includes(p.category)) { sc += 40; reasons.push(`你喜欢${p.category}`); }
+  if (prefs.likes.includes(p.category)) { sc += 40; reasons.push(prefs.demo ? `示例偏好里有${p.category}` : `你喜欢${p.category}`); }
   if (p.avgCost <= prefs.budget) { sc += 25; reasons.push(p.avgCost === 0 ? "不花钱" : "在你的预算内"); }
   else sc += 25 * Math.max(0, 1 - (p.avgCost - prefs.budget) / Math.max(prefs.budget, 50));
-  const rain = rainOverride ?? rainFor(p);
-  if (rain > 50) { if (p.indoor) { sc += 20; reasons.push("周末有雨，这里在室内"); } else sc += 4; }
-  else if (!p.indoor) { sc += 20; reasons.push("周末天气适合在外面待着"); } else sc += 14;
+  const w = wxOverride !== undefined ? wxOverride : rainFor(p);
+  if (!w) sc += 12;                                   // 天气未知：不加不减，也不写理由
+  else if (w.rain > 50) { if (p.indoor) { sc += 20; reasons.push(`${w.label}降水 ${w.rain}%，这里在室内`); } else sc += 4; }
+  else if (!p.indoor) { if (w.rain < 30) { sc += 20; reasons.push(`${w.label}降水只有 ${w.rain}%，适合在外面待着`); } else sc += 10; }
+  else sc += 14;
   const g = prefs.groupSize;
   if (p.suitFor.includes(g)) { sc += 10; reasons.push(g === 1 ? "一个人去也自在" : `适合${GROUPS.find((x) => x.value === g)?.label || g + " 人"}一起`); }
   sc += (5 * p.heat) / 3200;
@@ -399,11 +407,20 @@ function sessionCard(s) {
     ${strip(s)}
     <div class="tk-perf"></div>
     <div class="tk-foot">
-      <div class="tk-cell"><small>人均</small><b>¥${s.budget.perPerson ?? 0}</b></div>
+      <div class="tk-cell"><small>人均预算</small><b>¥${s.budget.perPerson ?? 0}</b></div>
       <div class="tk-cell"><small>人数</small><b>${s.members.length}/${s.cap}</b></div>
       <div class="tk-who">${avatars(s.members, 4)}</div>
       ${st === "done" ? `<button class="like ${liked ? "on" : ""}" onclick="event.stopPropagation();toggleLike('${s.id}',this)">${liked ? ICON.heartOn : ICON.heart}<span class="n">${fmt((s.likes || 0) + (liked ? 1 : 0))}</span></button>` : ""}
     </div></article>`;
+}
+// 横滑用的小票根
+function miniTicket(s) {
+  const p0 = PL[s.stops[0]?.placeId], ph = sessionPhotos(s)[0];
+  return `<article class="mtk" onclick="go('#/session/${s.id}')">
+    <div class="mtk-ph">${ph ? img(ph) : ""}${sticker(`${s.members.length}/${s.cap}`)}</div>
+    <div class="kicker">${dateMono(s.date)} · ${s.stops.length} 站</div>
+    <b>${esc(s.title)}</b>
+    <div class="mtk-foot">${avatars(s.members, 3)}<span class="kicker">人均预算 ¥${s.budget.perPerson ?? 0}</span></div></article>`;
 }
 // 紧凑版票根（列表里用）
 function sessionRow(s) {
@@ -521,11 +538,12 @@ function renderOnboarding() {
     <div class="onb-top">
       ${onb.step ? `<button class="icon-btn" onclick="onb.step--;renderOnboarding()" aria-label="上一步">${ICON.back}</button>` : `<span class="brand sm">周末去哪<i>*</i></span>`}
       <div class="onb-prog"><i style="width:${((onb.step + 1) / n) * 100}%"></i></div>
-      <button class="skip" onclick="finishOnb()">跳过</button></div>
+      <button class="skip" onclick="finishOnb()">${S.prefs?.done ? "跳过" : "先逛逛"}</button></div>
     <div class="onb-count kicker">${pad(onb.step + 1)} / ${pad(n)}</div>
     <h1 class="onb-q">${st.q}</h1>
     <p class="onb-hint">${st.hint}</p>
     <div class="onb-body" ${onb._anim === onb.step ? 'style="animation:none"' : ""}>${body}</div>
+    ${onb.step === 0 && !S.prefs?.done ? `<button class="cta ghost wide browse" onclick="finishOnb()">先逛逛，资料之后再填 ${ICON.arrow}</button>` : ""}
     ${st.key !== "loc" ? `<button class="next" id="onbNext" onclick="onbNext()" aria-label="下一步">${ICON.arrow}</button>` : ""}
   </div>`;
   onb._anim = onb.step;
@@ -549,15 +567,17 @@ function finishOnb(dest) {
   const o = onb || {};
   const nick = (o.nick || "").trim() || "周末玩家" + Math.floor(Math.random() * 900 + 100);
   const prevUid = S.prefs?.uid;
+  // 没有自己选过兴趣的人，用的是示例偏好：界面上要说清楚，不能说「你喜欢…」
+  const demo = !o.likes?.length && (S.prefs ? !!S.prefs.demo : true);
   S.prefs = {
     likes: o.likes?.length ? o.likes : ["展览", "市集"], budget: o.budget ?? 100, groupSize: o.groupSize || 2, city: "上海", avatar: o.avatar || "🐱", nick,
-    gender: o.gender || "", age: +o.age || "", school: (o.school || "").trim(), prompt: (o.prompt || "").trim(), uid: prevUid || uid("u"), done: true,
+    gender: o.gender || "", age: +o.age || "", school: (o.school || "").trim(), prompt: (o.prompt || "").trim(), uid: prevUid || uid("u"), done: true, demo,
   };
   persist("prefs");
   S.sessions.forEach((s) => s.members.forEach((m) => { if (m.uid === S.prefs.uid) Object.assign(m, meRef()); }));
   persist("sessions");
   if (online() && API.auth) API.updateMe({ name: nick, avatar: S.prefs.avatar }).catch(() => {});
-  onb = null; S.ui.chip = "为你推荐";
+  onb = null; S.ui.layer = "rec"; S.ui.cond = null;
   if (!S.wx) loadWeather();
   const back = sessionStorage_get("wk2_after_onb");
   go(back || dest || "#/discover");
@@ -565,16 +585,25 @@ function finishOnb(dest) {
 function sessionStorage_get(k) { try { const v = sessionStorage.getItem(k); sessionStorage.removeItem(k); return v; } catch { return null; } }
 
 // ---------- 发现 ----------
-const DISCOVER_CHIPS = ["为你推荐", "可加入的局", "攻略", "雨天也能去", "免费", ...TYPES];
+const LAYERS = [["rec", "推荐"], ["join", "可加入的局"], ["guide", "攻略"]];
+const CONDS = ["雨天也能去", "免费", ...TYPES];
+function prefBar() {
+  const p = S.prefs;
+  const txt = `${p.likes.join("、")} · 人均${BUDGETS.find((b) => b.value === p.budget)?.label || ""} · ${GROUPS.find((g) => g.value === p.groupSize)?.label || ""}`;
+  return `<div class="pref-bar ${p.demo ? "demo" : ""}"><span><b>${p.demo ? "按示例偏好推荐" : "按你的偏好推荐"}</b>${esc(txt)}</span><button class="cta sm ${p.demo ? "acid" : "ghost"}" onclick="go('#/onboarding')">${p.demo ? "改成我的" : "改"}</button></div>`;
+}
 function renderDiscover() {
-  const hi = S.prefs?.nick ? `${esc(S.prefs.nick)}，` : "";
   $("#view").innerHTML = `<div class="page">
     <header class="top"><span class="brand">周末去哪<i>*</i></span>
       <div class="top-actions"><button class="icon-btn" onclick="toggleSearch()" aria-label="搜索">${ICON.search}</button><button class="icon-btn" onclick="go('#/map')" aria-label="地图">${ICON.map}</button></div></header>
     ${S.ui.searching ? `<div class="search-bar"><input class="input" id="q" placeholder="搜地点、区域、标签" value="${esc(S.ui.q)}" oninput="S.ui.q=this.value;renderDiscoverList()"><button class="icon-btn" onclick="toggleSearch()" aria-label="关闭">${ICON.close}</button></div>` : ""}
-    <h1 class="hero">${hi}这周末<br><em>去哪</em>？</h1>
+    ${S.prefs?.demo ? "" : `<div class="hello kicker">嗨，${esc(S.prefs?.nick || "")}</div>`}
+    <h1 class="hero">这周末<br><em>去哪</em>？</h1>
+    <p class="value">找去处、约搭子，把周末安排成一个局。</p>
     <div id="wx"></div>
-    <div class="chips">${DISCOVER_CHIPS.map((c) => `<button class="chip ${S.ui.chip === c ? "on" : ""}" onclick="S.ui.chip='${c}';renderDiscover()">${c}</button>`).join("")}</div>
+    ${prefBar()}
+    <div class="seg wide">${LAYERS.map(([k, l]) => `<button class="${S.ui.layer === k ? "on" : ""}" onclick="S.ui.layer='${k}';renderDiscover()">${l}</button>`).join("")}</div>
+    <div class="chips conds" aria-label="条件，可叠加">${CONDS.map((c) => `<button class="chip ${S.ui.cond === c ? "on" : ""}" onclick="S.ui.cond=S.ui.cond==='${c}'?null:'${c}';renderDiscover()">${c}${S.ui.cond === c ? " ×" : ""}</button>`).join("")}</div>
     <div id="list"></div>
     <footer class="foot"><div class="mode-slot">${modeLine()}</div>地点照片来自 Wikimedia Commons，逐张署名见 <a href="https://github.com/JamesQiu2005/weekend-city-guide/blob/main/CREDITS.md" target="_blank" rel="noopener">CREDITS.md</a> · 天气 Open-Meteo · 地图 © OpenStreetMap</footer>
     </div>${tabbar("discover")}`;
@@ -603,14 +632,14 @@ function renderWeather() {
 function matchQ(text) { const q = S.ui.q.trim(); return !q || text.includes(q); }
 function renderDiscoverList() {
   const el = $("#list"); if (!el) return;
-  const c = S.ui.chip;
+  const layer = S.ui.layer, c = S.ui.cond;
   let places = PLACES.map((p) => ({ p, s: score(p).sc + (S.loc ? Math.max(0, 8 - km(S.loc, p)) : 0) }));
   let sessions = [...(online() ? S.feed || [] : []), ...allSessions().filter((s) => s.visibility === "public" && !(online() && s.seed && status(s) !== "done"))].filter((s) => !noShow(s));
   const placeText = (p) => [p.name, p.district, p.category, ...p.tags].join(" ");
   const sessText = (s) => [s.title, ...(s.tags || []), ...s.stops.map((x) => PL[x.placeId]?.name || "")].join(" ");
-  if (c === "可加入的局") { places = []; sessions = sessions.filter((s) => status(s) === "planning" && s.members.length < s.cap); }
-  else if (c === "攻略") { places = []; sessions = sessions.filter((s) => status(s) === "done"); }
-  else if (c === "雨天也能去") { places = places.filter((x) => x.p.indoor); sessions = sessions.filter((s) => s.stops.every((st) => PL[st.placeId]?.indoor)); }
+  if (layer === "join") { places = []; sessions = sessions.filter((s) => status(s) === "planning" && s.members.length < s.cap); }
+  else if (layer === "guide") { places = []; sessions = sessions.filter((s) => status(s) === "done"); }
+  if (c === "雨天也能去") { places = places.filter((x) => x.p.indoor); sessions = sessions.filter((s) => s.stops.every((st) => PL[st.placeId]?.indoor)); }
   else if (c === "免费") { places = places.filter((x) => x.p.avgCost === 0); sessions = sessions.filter((s) => estTotal(s) === 0); }
   else if (TYPES.includes(c)) { places = places.filter((x) => x.p.category === c); sessions = sessions.filter((s) => s.stops.some((st) => PL[st.placeId]?.category === c)); }
   places = places.filter((x) => matchQ(placeText(x.p))).sort((a, b) => b.s - a.s).map((x) => x.p);
@@ -619,6 +648,9 @@ function renderDiscoverList() {
     if (sa !== sb) return sa === "planning" ? -1 : sb === "planning" ? 1 : 0;
     return sa === "planning" ? a.date.localeCompare(b.date) : (b.likes || 0) - (a.likes || 0);
   });
+  // 首屏露出组局能力：推荐层、没有条件时，先放一排「在招人的局」
+  const openNow = layer === "rec" && !c && !S.ui.q.trim() ? sessions.filter((s) => status(s) === "planning" && s.members.length < s.cap).slice(0, 6) : [];
+  if (openNow.length) sessions = sessions.filter((s) => !openNow.includes(s));
   const items = [];
   let i = 0, j = 0;
   while (i < places.length || j < sessions.length) {
@@ -626,7 +658,9 @@ function renderDiscoverList() {
     if (j < sessions.length) items.push(sessionCard(sessions[j++]));
   }
   const rainy = S.wx && Math.max(S.wx.sat?.rain ?? 0, S.wx.sun?.rain ?? 0) > 50;
-  el.innerHTML = `<div class="count kicker">${places.length} 个地方 · ${sessions.length} 个局${rainy && c === "为你推荐" ? " · 周末有雨，室内优先" : ""}${S.loc && c === "为你推荐" ? " · 近的排前面" : ""}</div>` +
+  el.innerHTML = (openNow.length ? `<div class="rail-h"><b>这周末在招人的局</b><button class="linkish" onclick="S.ui.layer='join';renderDiscover()">全部</button></div>
+      <div class="rail">${openNow.map(miniTicket).join("")}</div>` : "") +
+    `<div class="count kicker">${LAYERS.find((x) => x[0] === layer)[1]}${c ? " + " + c : ""} · ${places.length} 个地方 · ${sessions.length + openNow.length} 个局${rainy && layer === "rec" ? " · 周末有雨，室内优先" : ""}${S.loc && layer === "rec" ? " · 近的排前面" : ""}</div>` +
     (items.length ? `<div class="feed-col">${items.join("")}</div>` : `<div class="empty"><b>没有找到</b>换个标签试试</div>`);
 }
 
@@ -787,12 +821,12 @@ function renderBudget() {
 function budgetBar(total, est, actual, cap, mode) {
   const pct = total ? Math.min(100, (est / total) * 100) : est ? 100 : 0, over = est > total;
   return `<div class="budget-nums">
-      <div><small>人均</small><b>¥${cap ? Math.round(total / cap) : total}</b></div>
-      <div><small>预估</small><b class="${over ? "red" : ""}">¥${est}</b></div>
+      <div><small>人均预算</small><b>¥${cap ? Math.round(total / cap) : total}</b></div>
+      <div><small>人均预估</small><b class="${over ? "red" : ""}">¥${cap ? Math.round(est / cap) : est}</b></div>
       <div><small>总预算</small><b>¥${total}</b></div>
       ${actual != null ? `<div><small>实际</small><b>¥${actual}</b></div>` : ""}</div>
     <div class="bar"><i style="width:${over ? (total / est) * 100 : pct}%"></i>${over ? `<i class="over" style="width:${100 - (total / est) * 100}%"></i>` : ""}</div>
-    <div class="hint ${over ? "red" : ""}">${over ? `超出预算 ¥${est - total}，可以删掉一站或者调高预算` : `预估 = 各站花费 × ${cap} 人${mode === "treat" ? " · 组织者请客" : ""}`}</div>`;
+    <div class="hint ${over ? "red" : ""}">${over ? `超出预算 ¥${est - total}，可以删掉一站或者调高预算` : `人均预估 = 各站人均花费相加；总预估 ¥${est}（× ${cap} 人）${mode === "treat" ? " · 组织者请客" : ""}`}</div>`;
 }
 function renderSeats() {
   const el = $("#seats"); if (!el) return;
@@ -986,6 +1020,7 @@ function entryHtml(e, s) {
   return `<div class="entry">${head}${body}${e.photo ? `<div class="e-photo">${img(e.photo)}</div>` : ""}</div>`;
 }
 async function postNote(sid) {
+  closeSheet();
   const v = ($("#noteIn")?.value || "").trim(); if (!v) return;
   if (getSession(sid).remote) { if (await remoteWrite(sid, () => API.addEntry(sid, { type: "note", text: v }))) render(); return; }
   const s = getSession(sid), me = meRef();
@@ -993,10 +1028,12 @@ async function postNote(sid) {
   saveSession(s); render();
 }
 async function demoToday(sid) {
+  closeSheet();
   if (getSession(sid).remote) { if (await remoteWrite(sid, () => API.updateSession(sid, { date: today(), changeNote: "（演示）日期改成了今天" }))) render(); return; }
   const s = getSession(sid); s.date = today(); s.entries.push(sysEntry(sid, "（演示）日期改成了今天")); saveSession(s); render();
 }
 async function closeSession(sid) {
+  closeSheet();
   if (getSession(sid).remote) { if (await remoteWrite(sid, () => API.updateSession(sid, { closed: true }))) { toast("收局！可以设为公开，变成一篇攻略"); render(); } return; }
   const s = getSession(sid);
   s.closed = true; s.entries.push(sysEntry(sid, `${S.prefs.nick} 收局了`)); saveSession(s);
@@ -1030,7 +1067,7 @@ function snapshot(s) {
 const shareLink = (s) => (s.remote ? API.shareLink(s.id) : location.origin + location.pathname + "#/s/" + b64e(snapshot(s)));
 function shareSession(sid, justCreated) {
   const s = getSession(sid);
-  if (s.visibility === "private") { toast("私密局不能分享，先改成「好友」或「公开」"); openVisibility(sid); return; }
+  if (s.visibility === "private") { toast("私密局不能分享，先改成「链接可见」或「公开」"); openVisibility(sid); return; }
   const link = shareLink(s);
   openSheet(`${justCreated ? `<div class="made">${sticker("局开好了")}</div>` : ""}<h2 class="sheet-t">${justCreated ? esc(s.title) : "邀请朋友"}</h2>
     <div class="sub">${dateLabel(s.date)} · ${s.stops.length} 站 · ${s.members.length}/${s.cap} 人</div>
@@ -1082,9 +1119,10 @@ async function joinSession(sid) {
 let F = {};
 function openSheet(html) {
   closeSheet();
-  $("#layer").insertAdjacentHTML("beforeend", `<div class="sheet-mask" onclick="closeSheet()"></div><div class="sheet" role="dialog"><div class="grabber"></div>${html}</div>`);
+  $("#layer").insertAdjacentHTML("beforeend", `<div class="sheet-mask" onclick="closeSheet()"></div><div class="sheet" role="dialog" aria-modal="true"><div class="grabber"></div><button class="sheet-x" onclick="closeSheet()" aria-label="关闭">${ICON.close}</button>${html}</div>`);
 }
 function closeSheet() { $("#layer")?.querySelectorAll(".sheet-mask,.sheet").forEach((e) => e.remove()); }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSheet(); closeAdd(); } });
 async function addPhotos(input, max, sel) {
   const files = [...input.files].slice(0, max - F.images.length);
   for (const f of files) { try { F.images.push(await compress(f, online() ? 1280 : 720, online() ? 0.8 : 0.72)); } catch { toast("图片读取失败"); } }

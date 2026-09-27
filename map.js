@@ -1,5 +1,11 @@
 // 地图（参考 Actually 的 Map：地点标记 + 浮动筛选 + 定位按钮 + 点标记弹出迷你预览）
-// 瓦片直接用 OpenStreetMap；坐标都是 WGS-84，暂不做 GCJ-02 转换（OSM 底图本身就是 WGS-84，对得上）。
+// 瓦片用 OpenStreetMap 数据；坐标都是 WGS-84，暂不做 GCJ-02 转换（OSM 底图本身就是 WGS-84，对得上）。
+// 底图有两个来源：OSM 官方瓦片 → CARTO（同样是 OSM 数据）。某个来源 6 秒内一张都没加载出来就换下一个，
+// 都失败时明确告诉用户，并保留标记、重试和列表入口 —— 不能留一张空白地图。
+const TILE_SOURCES = [
+  { name: "OpenStreetMap", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", opts: { maxZoom: 19 } },
+  { name: "CARTO · OSM 数据", url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", opts: { maxZoom: 19, subdomains: "abcd" } },
+];
 // Leaflet 只在打开地图时从 cdnjs 按需加载，其它页面零依赖。
 const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
 const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
@@ -40,22 +46,40 @@ function renderMap(_arg, query) {
     </div>
     <button class="loc-btn" onclick="locateMe(true)" aria-label="定位到我">${ICON.locate}</button>
     <div id="mapCard"></div>
-    <div class="map-attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
+    <div class="map-status" id="mapStatus"><span class="kicker">地图加载中…</span></div>
+    <div class="map-attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors<span id="tileSrc"></span></div>
   </div>${tabbar("map")}`;
-  loadLeaflet().then((L) => initMap(L)).catch(() => {
-    $("#map").innerHTML = `<div class="empty full"><b>地图没加载出来</b>网络可能访问不了地图服务。<button class="cta ghost" onclick="go('#/discover')">先看列表</button></div>`;
-  });
+  loadLeaflet().then((L) => initMap(L)).catch(() => mapFailed("地图组件没加载出来"));
 }
 function initMap(L) {
   if (route().name !== "map" || !$("#map")) return;
   if (MAP) { MAP.remove(); MAP = null; }
   MAP = L.map("map", { zoomControl: false, attributionControl: false, zoomSnap: 0.5 }).setView([31.2, 121.44], 11.5);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, crossOrigin: true }).addTo(MAP);
+  useTiles(0);
   MAP.on("click", () => { MS.sel = null; refreshMap(); });
-  MS.markers = {}; MS.me = null;
+  MS.markers = {}; MS.me = null; MS.tiles = null;
   refreshMap(true);
   if (S.loc) drawMe(); else if (!S.locAsked) showLocAsk();
 }
+let tileTimer = null;
+function useTiles(i) {
+  if (!MAP) return;
+  clearTimeout(tileTimer);
+  if (MS.tiles) MS.tiles.remove();
+  if (i >= TILE_SOURCES.length) { mapFailed("底图没加载出来"); return; }
+  const src = TILE_SOURCES[i];
+  let loaded = 0;
+  MS.tiles = L.tileLayer(src.url, src.opts).addTo(MAP);
+  MS.tiles.on("tileload", () => { if (!loaded++) { clearTimeout(tileTimer); const st = $("#mapStatus"); if (st) st.innerHTML = ""; const t = $("#tileSrc"); if (t) t.textContent = i ? " · " + src.name : ""; } });
+  tileTimer = setTimeout(() => { if (!loaded) useTiles(i + 1); }, 6000);
+}
+// 底图拿不到：标记还在（纸色底上照样能点），另外给出重试和列表入口
+function mapFailed(why) {
+  const st = $("#mapStatus"); if (!st) return;
+  st.innerHTML = `<div class="map-fail"><b>${why}</b><span>可能是当前网络拦截了地图服务。${MAP ? "地点标记还能点，" : ""}也可以直接看列表。</span>
+    <div class="mc-actions"><button class="cta ghost sm" onclick="retryMap()">重试</button><button class="cta acid sm" onclick="go('#/discover')">看列表</button></div></div>`;
+}
+function retryMap() { const st = $("#mapStatus"); if (st) st.innerHTML = `<span class="kicker">地图加载中…</span>`; if (MAP) useTiles(0); else renderMap(); }
 function pinHtml(p, on) {
   return `<div class="pin ${on ? "on" : ""} ${p.indoor ? "" : "out"}"><b>${money(p.avgCost)}</b>${on ? `<span>${esc(shortName(p))}</span>` : ""}</div>`;
 }

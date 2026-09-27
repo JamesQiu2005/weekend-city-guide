@@ -46,7 +46,7 @@ function agentFields() {
       <div style="flex:1"><label>几个人</label><input class="input" type="number" min="1" max="12" value="${F.people}" oninput="F.people=Math.max(1,+this.value||1)"></div>
       <div style="flex:1"><label>总预算 ¥</label><input class="input" type="number" min="0" value="${F.total}" oninput="F.total=+this.value||0"></div></div>
     <div class="field"><label>哪天</label><input class="input" type="date" min="${today()}" value="${F.date}" onchange="F.date=this.value"></div>
-    <div class="field"><label>想玩什么</label><div class="chips">${TYPES.map((t) => `<button class="chip ${F.likes.includes(t) ? "on" : ""}" onclick="F.likes=F.likes.includes('${t}')?F.likes.filter(x=>x!=='${t}'):[...F.likes,'${t}'];this.classList.toggle('on')">${TYPE_EMOJI[t]} ${t}</button>`).join("")}</div></div>
+    <div class="field"><label>想玩什么</label><div class="chips">${TYPES.map((t) => `<button class="chip ${F.likes.includes(t) ? "on" : ""}" onclick="F.likes=F.likes.includes('${t}')?F.likes.filter(x=>x!=='${t}'):[...F.likes,'${t}'];this.classList.toggle('on')">${t}</button>`).join("")}</div></div>
     <div class="field"><label>几站</label><div class="chips">${[1, 2, 3, 4].map((n) => `<button class="chip ${F.n === n ? "on" : ""}" onclick="F.n=${n};this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">${n} 站</button>`).join("")}</div></div>`;
 }
 const agentDefaults = () => ({ people: S.prefs.groupSize === 3 ? 4 : S.prefs.groupSize === 5 ? 5 : Math.max(2, S.prefs.groupSize), total: 400, likes: [...S.prefs.likes], n: 3, date: nextSaturday() });
@@ -102,7 +102,7 @@ function openAgentRules(notice) {
     ${agentFields()}
     <button class="cta neon" style="margin-top:16px" onclick="runAgent()">排一个局</button>
     <div id="agentOut"></div>
-    <div class="hint" style="margin-top:12px">当前是规则引擎（偏好打分 + 距离贪心；在线时由服务器 /v1/agent/plan 计算），还没有调用大模型。v0.3 换成大模型时接口不变。</div>`);
+    <div class="hint" style="margin-top:12px">规则版：按你的偏好、预算、当天天气和站点之间的距离排一个草稿，排好后还可以再改。</div>`);
 }
 async function runAgent() {
   const out = $("#agentOut");
@@ -115,16 +115,18 @@ async function runAgent() {
       draft.stops = d.stops.filter((x) => PL[x.placeId]).map((x) => ({ placeId: x.placeId, time: x.time || "14:00", estCost: x.estCost ?? PL[x.placeId].avgCost, note: x.note || "" }));
       window.__agentPlan = draft;
       const why = Object.fromEntries((r.rationale || []).map((x) => [x.placeId, x.reasons || []]));
-      out.innerHTML = agentPlanHtml(draft.stops.map((x) => ({ p: PL[x.placeId], reasons: why[x.placeId] || [] })), draft.stops, Math.round(draft.stops.reduce((a, x) => a + x.estCost, 0)), F.total / F.people, `服务器 · ${r.engine}`);
+      out.innerHTML = agentPlanHtml(draft.stops.map((x) => ({ p: PL[x.placeId], reasons: why[x.placeId] || [] })), draft.stops, Math.round(draft.stops.reduce((a, x) => a + x.estCost, 0)), F.total / F.people, "规则版");
       return;
     } catch (e) { if (e.code !== "NO_PLAN") toast("服务器排局失败，改用本地规则"); else { out.innerHTML = `<div class="agent-think">预算内排不出这么多站，试试减少站数或提高预算</div>`; return; } }
   }
   const perHead = F.total / F.people;
   const prefs = { likes: F.likes.length ? F.likes : TYPES, budget: perHead, groupSize: F.people >= 5 ? 5 : F.people >= 3 ? 3 : F.people };
   // 先拉一遍候选地点当天下午的天气（同一网格只请求一次）
-  PLACES.forEach((p) => wxFor(p, F.date, "14:00"));
-  await new Promise((r) => setTimeout(r, 900));
-  const rainOf = (p) => { const w = wxFor(p, F.date, "14:00"); return w && w.rain != null ? w.rain : 0; };
+  // 等天气真正回来（最多 4 秒）；拿不到的就当「未知」，不写天气理由
+  const loading = () => PLACES.some((p) => wxFor(p, F.date, "14:00")?.kind === "loading");
+  for (let t = 0; t < 40 && loading(); t++) await new Promise((r) => setTimeout(r, 100));
+  const md = F.date.slice(5).replace("-", "/");
+  const rainOf = (p) => { const w = wxFor(p, F.date, "14:00"); return w && (w.kind === "ok" || w.kind === "mock") ? { rain: w.rain, label: `${md} 下午` } : null; };
   const cand = PLACES.map((p) => ({ p, ...score(p, prefs, rainOf(p)) })).sort((a, b) => b.sc - a.sc);
   const picked = [cand[0]];
   let spent = cand[0].p.avgCost;
@@ -140,7 +142,7 @@ async function runAgent() {
   const draft = { ...newDraft([]), date: F.date, cap: F.people, budget: { total: F.total, mode: "AA" }, visibility: "link" };
   draft.stops = picked.map((c, i) => ({ placeId: c.p.id, time: `${pad(start + i * 3)}:00`, estCost: c.p.avgCost, note: "" }));
   window.__agentPlan = draft;
-  out.innerHTML = agentPlanHtml(picked, draft.stops, spent, perHead, "本地规则 mock", picked.length < F.n ? ` · 预算内只排得下 ${picked.length} 站` : "");
+  out.innerHTML = agentPlanHtml(picked, draft.stops, spent, perHead, "规则版", picked.length < F.n ? ` · 预算内只排得下 ${picked.length} 站` : "");
 }
 function agentPlanHtml(picked, stops, spent, perHead, engine, extra = "", useJs = "window.__agentDraft=window.__agentPlan;closeSheet();go('#/new?from=agent')") {
   return `<div class="agent-plan"><b>草稿：${picked.map((c) => shortName(c.p)).join(" → ")}</b>

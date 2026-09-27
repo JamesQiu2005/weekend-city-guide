@@ -2,3 +2,5 @@
 NEXT_AGENT.md
 .env
 .env.*
+tests/node_modules/
+tests/artifacts/
