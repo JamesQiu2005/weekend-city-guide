@@ -1,0 +1,18 @@
+[
+  { "id": "a1",  "city": "上海", "name": "西岸美术馆 · 蓬皮杜典藏展：色彩的边界", "category": "展览",     "district": "徐汇滨江",        "lat": 31.1706, "lon": 121.4596, "indoor": true,  "avgCost": 100 },
+  { "id": "a2",  "city": "上海", "name": "安福路周末古着市集｜80 个摊位",         "category": "市集",     "district": "徐汇 · 安福路",   "lat": 31.2118, "lon": 121.4455, "indoor": false, "avgCost": 0 },
+  { "id": "a3",  "city": "上海", "name": "MAO Livehouse · 独立乐队拼盘夜",       "category": "演出",     "district": "黄浦 · 重庆南路", "lat": 31.2105, "lon": 121.4745, "indoor": true,  "avgCost": 150 },
+  { "id": "a4",  "city": "上海", "name": "佘山国家森林公园 · 半日轻徒步",         "category": "徒步",     "district": "松江 · 佘山",     "lat": 31.0960, "lon": 121.1930, "indoor": false, "avgCost": 30 },
+  { "id": "a5",  "city": "上海", "name": "M50 创意园 · 开放工作室日",             "category": "展览",     "district": "普陀 · 莫干山路", "lat": 31.2480, "lon": 121.4460, "indoor": true,  "avgCost": 0 },
+  { "id": "a6",  "city": "上海", "name": "陶艺体验 · 2 小时拉坯课",               "category": "手作",     "district": "静安 · 愚园路",   "lat": 31.2215, "lon": 121.4330, "indoor": true,  "avgCost": 168 },
+  { "id": "a7",  "city": "上海", "name": "武康路—衡山路 梧桐区 Citywalk",         "category": "Citywalk", "district": "徐汇 · 衡复风貌区", "lat": 31.2050, "lon": 121.4380, "indoor": false, "avgCost": 0 },
+  { "id": "a8",  "city": "上海", "name": "云南路美食街 · 30 元吃撑路线",           "category": "美食探店", "district": "黄浦 · 云南南路", "lat": 31.2285, "lon": 121.4800, "indoor": false, "avgCost": 40 },
+  { "id": "a9",  "city": "上海", "name": "室内攀岩 · 新手体验课",                 "category": "运动",     "district": "长宁 · 虹桥",     "lat": 31.1980, "lon": 121.4050, "indoor": true,  "avgCost": 128 },
+  { "id": "a10", "city": "上海", "name": "上海大剧院 · 学生专场音乐会",           "category": "演出",     "district": "黄浦 · 人民广场", "lat": 31.2305, "lon": 121.4700, "indoor": true,  "avgCost": 80 },
+  { "id": "a11", "city": "上海", "name": "世纪公园 · 草坪野餐 + 飞盘局",           "category": "运动",     "district": "浦东 · 世纪公园", "lat": 31.2150, "lon": 121.5480, "indoor": false, "avgCost": 10 },
+  { "id": "a12", "city": "上海", "name": "UCCA Edge · 沉浸式数字艺术展",          "category": "展览",     "district": "静安 · 苏河湾",   "lat": 31.2440, "lon": 121.4760, "indoor": true,  "avgCost": 128 },
+  { "id": "a13", "city": "上海", "name": "上生·新所 周日农夫市集",                "category": "市集",     "district": "长宁 · 延安西路", "lat": 31.2130, "lon": 121.4200, "indoor": false, "avgCost": 0 },
+  { "id": "a14", "city": "上海", "name": "滨江骑行 · 杨浦段 12km",                "category": "运动",     "district": "杨浦滨江",        "lat": 31.2560, "lon": 121.5320, "indoor": false, "avgCost": 15 },
+  { "id": "a15", "city": "上海", "name": "即兴喜剧开放麦",                        "category": "演出",     "district": "静安 · 石门一路", "lat": 31.2295, "lon": 121.4600, "indoor": true,  "avgCost": 60 },
+  { "id": "a16", "city": "上海", "name": "朱家角古镇 · 一日游",                   "category": "Citywalk", "district": "青浦 · 朱家角",   "lat": 31.1080, "lon": 121.0550, "indoor": false, "avgCost": 50 }
+]

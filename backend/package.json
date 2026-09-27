@@ -1,0 +1,17 @@
+{
+  "name": "weekend-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply weekend-db --local",
+    "migrate:remote": "wrangler d1 migrations apply weekend-db --remote",
+    "seed:local": "node scripts/seed-places.mjs && wrangler d1 execute weekend-db --local --file seed/places.sql && wrangler d1 execute weekend-db --local --file seed/demo.sql",
+    "seed:remote": "node scripts/seed-places.mjs && wrangler d1 execute weekend-db --remote --file seed/places.sql && wrangler d1 execute weekend-db --remote --file seed/demo.sql",
+    "smoke": "bash test/smoke.sh"
+  },
+  "devDependencies": {
+    "wrangler": "^4.142.0"
+  }
+}

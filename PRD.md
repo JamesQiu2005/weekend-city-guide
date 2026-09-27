@@ -1,6 +1,7 @@
 # PRD ·「周末去哪*」v0.2 — 帖子即局
 
-> 美团 Vibe Coding 测试 · 纯前端 · GitHub Pages
+> 美团 Vibe Coding 测试 · 前端 GitHub Pages + 后端 Cloudflare Worker（D1 / KV）
+> 后端已上线：https://weekend-api.weekend-api.workers.dev · API 合约见 `RFC-001-api-contract.md`
 > v0.1（30 min 雏形，已上线）：https://jamesqiu2005.github.io/weekend-city-guide/ ，文档存档见 `PRD_v0.1.md`
 > v0.2 · 2026-09-27 · 本版是**增量升级**，不推翻 v0.1 的视觉和技术底座
 
@@ -155,11 +156,13 @@ Entry   { id, sessionId, stopIndex?, author, type: 'checkin'|'photo'|'spend'|'no
 - 分组：筹备中 / 进行中 / 已完成的局。
 - 足迹：所有打卡按时间倒序展示（跨局聚合）。
 
-### 4.7 分享与加入（P0，无后端）
+### 4.7 分享与加入（P0，真实多人）
 
-- 链接 `#/s/<base64url(JSON)>` 里编码局的快照（不含照片 dataURL，只放地点 id 和文字）。
-- 打开链接 → 局详情（只读快照）→ 输入昵称「加入」→ 存进本地。
-- 页脚「关于雏形」写清楚限制：多人实时同步需要后端，下一步会接入 Supabase（前端直连 + RLS，依然可以托管在 GitHub Pages）。
+- 分享链接为 `#/session/<id>`，朋友打开看到的是**同一个局**（服务端数据），输入昵称就能「加入」。
+- 身份：首次写操作时签发匿名 token（昵称 + 头像），不需要注册。
+- 局在进行中时，详情页每 15 秒刷新一次，所有成员看到同样的打卡、照片和账目。
+- **离线兜底**：后端不可达时（例如大陆网络访问 workers.dev 失败），自动退回纯 localStorage 模式，分享链接退回 `#/s/<base64 快照>`，页脚显示「离线演示模式」。
+- 接口细节见 `RFC-001-api-contract.md`。
 
 ### 4.8 AI 局长（P2，接口先留好）
 
@@ -168,7 +171,7 @@ Entry   { id, sessionId, stopIndex?, author, type: 'checkin'|'photo'|'spend'|'no
 - **雨天改局**：天气变化时提出替换方案。
 - **收局**：根据局内的 Entry 写一段回顾草稿，用于公开发布。
 
-纯前端的约束：API key 不能放进 GitHub Pages。v0.2 **只做 UI 入口和一个基于规则的 mock**（打分 + 地理距离贪心排序），真实模型放到 v0.3，两个方案：让用户填自己的 key（BYOK，存 localStorage），或者用 Cloudflare Worker 做一层代理。
+v0.2 已经有**服务端规则版** `POST /v1/agent/plan`（偏好 / 雨天 / 预算打分 + 最近邻排序），返回的草稿可以直接用来开局。v0.3 把 LLM key 放进 Worker secret，换成真实模型，**接口不变**。
 
 ### 4.9 P1
 
@@ -219,12 +222,13 @@ Entry   { id, sessionId, stopIndex?, author, type: 'checkin'|'photo'|'spend'|'no
 
 ---
 
-## 7. 技术方案（不变的部分）
+## 7. 技术方案
 
-- 零构建、零依赖：`index.html` + `style.css` + `app.js` + `data.js` + `img/`。
-- hash 路由；内存 store + localStorage（全部 try/catch，隐私模式下降级为内存）。
-- 天气：Open-Meteo（免 key、支持 CORS），按坐标网格 + 日期缓存在内存里。
-- 部署：GitHub Pages，`main` 分支根目录，全部使用相对路径。
+- **前端**：零构建、零依赖：`index.html` + `style.css` + `app.js` + `data.js` + `api.js` + `img/`。hash 路由；GitHub Pages，`main` 分支根目录，全部使用相对路径。
+- **后端**：Cloudflare Worker `weekend-api`（零依赖）+ D1 `weekend-db`（用户 / 地点 / 局 / 站 / 成员 / 动态）+ KV `MEDIA`（照片）。代码在 `backend/`，39 项冒烟测试，免费额度够用。
+- **天气**：优先走 `GET /v1/weather` 代理（30 分钟边缘缓存），失败时直连 Open-Meteo，再失败用 mock。
+- **地理认证在服务端判定**：前端只上传坐标。
+- **双模**：启动时探测 `/v1/health`（3 秒超时）。在线走 API；离线退回 localStorage，演示时永远不白屏。
 
 ---
 
@@ -235,9 +239,10 @@ Entry   { id, sessionId, stopIndex?, author, type: 'checkin'|'photo'|'spend'|'no
 | 基本单位 | 局（Session）| 笔记 / POI | 真实周末是一群人、一个日期、多个地点、一笔钱，内容应该是这件事的副产品 |
 | 攻略从哪来 | 已完成的公开局 | 独立的攻略编辑器 | 攻略由真实打卡组成，天然可信，也少一个入口 |
 | 快速打卡 | 自动生成单人私密局 | 独立的打卡表 | 模型只有一套，而且任何一次打卡都可以升级成局 |
-| 无后端的多人协作 | 链接编码快照 | 假装实时同步 | 诚实写明限制；用 Supabase 升级的路径清晰 |
+| 后端 | Cloudflare Worker + D1 + KV | Supabase / 自建服务器 | 零运维、免费额度够用、和前端一样零依赖；workers.dev 在大陆不稳定，所以用自定义域名 + 离线双模兜底 |
 | 地图 | SVG 线路示意图 | Leaflet / 高德 | 零依赖、国内可访问、视觉更统一；精确导航交给系统地图 |
-| AI | v0.2 只留入口 + 规则 mock | 马上接模型 | 纯前端藏不住 key；先把数据模型做对，agent 才有东西可用 |
+| 地理认证 | 服务端根据坐标判定 | 前端自己判定 | 前端判定可以伪造；放在服务端，「到场认证」才有意义 |
+| AI | v0.2 做服务端规则版 | 马上接模型 | 先把数据模型和接口做对；换 LLM 时接口不变 |
 
 ---
 
@@ -251,7 +256,10 @@ Entry   { id, sessionId, stopIndex?, author, type: 'checkin'|'photo'|'spend'|'no
 | M4 局即帖子 | 局详情页、线路图、动态流、分享链接、加入 | 无痕窗口打开链接可以加入 |
 | M5 打卡 | 地理认证、spend 记账、全员到齐章 | 实际花费随打卡更新 |
 | M6 发现混排 | 地点卡 + 公开局卡混排，种子公开局 | 发现页能看到"已完成的局"当作攻略 |
-| M7 AI 入口 | 局长按钮 + 规则 mock 排局 | 输入人数 / 预算 / 偏好能生成草稿 |
+| M7 AI 入口 | 局长按钮 → `POST /v1/agent/plan` | 输入人数 / 预算 / 偏好能生成草稿，一键开局 |
+| M8 接后端 | 引入 `api.js`；在线 / 离线双模；局、加入、打卡、照片、足迹走 API；分享链接改成 `#/session/<id>` | 两台设备（或普通窗口 + 无痕窗口）看到同一个局，打卡互相可见 |
+
+> **M8 可以和 M3–M7 并行**：新写的功能直接调 API，不必先做一遍 localStorage 版再迁移。离线模式只要求「能演示」，不要求功能完全一样。
 
 ---
 
@@ -263,7 +271,8 @@ Entry   { id, sessionId, stopIndex?, author, type: 'checkin'|'photo'|'spend'|'no
 - [ ] 可见性切到「公开」→ 局出现在发现流；切回「私密」→ 从发现流消失
 - [ ] 快速打卡 → 「我的局」里出现一个单人私密局 → 可以改成公开
 - [ ] 定位允许且在 500m 内 → 打卡带「到场认证」；拒绝定位 → 能打卡但没有徽章，并给出说明
-- [ ] 复制局链接 → 无痕窗口打开 → 加入 → 成员 +1
+- [ ] 复制局链接 → 无痕窗口打开 → 加入 → 成员 +1，**原窗口刷新后也能看到这名新成员**（服务端数据）
+- [ ] 在 DevTools 里屏蔽 workers.dev → 页面进入「离线演示模式」，不白屏
 - [ ] 所有地点卡显示真实照片，CREDITS.md 完整；断网时回退到渐变封面
 - [ ] 带着 v0.1 的旧 localStorage 打开，数据迁移后不丢
 - [ ] 375px 下无横向滚动；GitHub Pages 线上全流程可以走通

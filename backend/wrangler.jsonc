@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "weekend-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "vars": {
+    // Comma-separated. http://localhost:* and http://127.0.0.1:* are always allowed.
+    "ALLOWED_ORIGINS": "https://jamesqiu2005.github.io"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "weekend-db",
+      "database_id": "dd560c72-3270-46c0-a36c-ac960ef838ee",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Photos. R2 is not enabled on this account; switch the two /v1/media handlers to an R2 binding once it is.
+  "kv_namespaces": [
+    { "binding": "MEDIA", "id": "13ced77183904c45ad3e36ec45e05b96" }
+  ]
+}
