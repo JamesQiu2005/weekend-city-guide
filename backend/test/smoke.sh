@@ -75,6 +75,14 @@ W=$(req GET "/v1/weather?lat=31.23&lon=121.47&date=$TODAY"); check "weather toda
 W=$(req GET "/v1/weather?lat=31.23&lon=121.47&date=2027-06-01"); check "weather beyond horizon" '[ "$(echo "$W" | j .reason)" = beyond_horizon ]' "$W"
 G=$(req POST /v1/agent/plan '{"people":4,"budgetTotal":400,"likes":["展览","美食探店"],"rainy":true}')
 check "agent plan draft" '[ "$(echo "$G" | j .draft.stops.length)" -ge 1 ] && [ "$(echo "$G" | j .estTotal)" -le 400 ]' "$G"
+# AI 局长（LLM）门槛：未登录 401，未验证邮箱 403，邮箱格式错误 400
+OLD=$TOKEN; TOKEN=""
+AS=$(req GET /v1/agent/status); check "agent status (anon) not verified" '[ "$(echo "$AS" | j .verified)" = false ] && [ "$(echo "$AS" | j .perDay)" -ge 1 ]' "$AS"
+check "agent chat without token → 401" '[ "$(code POST /v1/agent/chat "{}")" = 401 ]' ""
+TOKEN=$(req POST /v1/users '{"name":"测试D"}' | j .token)
+check "agent chat without email verification → 403" '[ "$(code POST /v1/agent/chat "{}")" = 403 ]' ""
+check "agent email start rejects bad email → 400" '[ "$(code POST /v1/agent/email/start "{\"email\":\"nope\"}")" = 400 ]' ""
+TOKEN=$OLD
 check "CORS for github.io" 'curl -sSI -X OPTIONS "$API/v1/feed" -H "Origin: https://jamesqiu2005.github.io" | grep -qi "access-control-allow-origin: https://jamesqiu2005.github.io"' ""
 check "CORS denied for other origin" '! curl -sSI -X OPTIONS "$API/v1/feed" -H "Origin: https://evil.example" | grep -qi "access-control-allow-origin"' ""
 

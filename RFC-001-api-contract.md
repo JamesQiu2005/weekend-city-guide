@@ -2,7 +2,7 @@
 
 > 状态：**已实现并部署** · 2026-09-27
 > Base URL：`https://weekend-api.weekend-api.workers.dev`（Cloudflare Worker）
-> 代码：`backend/`（零依赖 Worker + D1 + KV）· 冒烟测试：`backend/test/smoke.sh`（39 项，本地全部通过）
+> 代码：`backend/`（零依赖 Worker + D1 + KV）· 冒烟测试：`backend/test/smoke.sh`（43 项，线上全部通过）
 > 需求来源：`PRD.md` v0.2 §3–§4
 
 ---
@@ -35,6 +35,7 @@ GitHub Pages（静态前端） ──HTTPS/JSON──▶ Cloudflare Worker `week
 | 分页 | 用游标：响应里有 `nextCursor`（为 `null` 表示没有下一页），请求时带 `?cursor=` |
 
 **错误码**：`BAD_REQUEST` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` / `NOT_A_MEMBER` 403 · `NOT_FOUND` / `SESSION_NOT_FOUND` / `PLACE_NOT_FOUND` / `ENTRY_NOT_FOUND` / `MEDIA_NOT_FOUND` 404 · `METHOD_NOT_ALLOWED` 405 · `SESSION_FULL` / `SESSION_CLOSED` / `ALREADY_CHECKED_IN` / `ORGANIZER_CANNOT_LEAVE` 409 · `TOO_LARGE` 413 · `UNSUPPORTED_MEDIA` 415 · `NO_PLAN` 422 · `INTERNAL` 500
+· AI 局长：`EMAIL_NOT_VERIFIED` 403 · `CODE_INVALID` / `CODE_EXPIRED` / `INVALID_EMAIL` 400 · `TURN_LIMIT` 409 · `RATE_LIMITED` / `DAILY_LIMIT` / `GLOBAL_LIMIT` / `BUSY` / `TOO_MANY_ATTEMPTS` 429 · `LLM_UNAVAILABLE` / `LLM_BAD_OUTPUT` / `EMAIL_SEND_FAILED` 502 · `LLM_NOT_CONFIGURED` / `EMAIL_NOT_CONFIGURED` 503
 
 ## 4. 数据类型
 
@@ -164,7 +165,37 @@ type SessionSummary = {                            // 信息流卡片
 |---|---|---|
 | POST | `/v1/agent/plan` | `{ city?='上海', date?, people?=2, budgetTotal?, likes?: string[], rainy?: boolean, maxStops?=3 }` → `{ engine:'rules-v0', draft: <可以直接 POST /v1/sessions 的请求体>, rationale: [{placeId, reasons[]}], estTotal }` |
 
-规则：偏好命中 +3、雨天室内 +2 / 户外 −3、按价格轻微惩罚；控制在预算内，站点彼此不超过 15km，最后按最近邻排序。**v0.3 换成 LLM 时路径和响应结构不变**，只改 `engine` 字段，前端不用动。
+规则：偏好命中 +3、雨天室内 +2 / 户外 −3、按价格轻微惩罚；控制在预算内，站点彼此不超过 15km，最后按最近邻排序。这个端点**保留为无需登录的免费兜底**（离线、未验证邮箱、模型不可用时使用），真实模型走 §5.11。
+
+### 5.11 AI 局长 · 大模型（deepseek-llm-v1）
+
+密钥只保存在 Worker secret `DEEPSEEK_API_KEY` 中，**永远不会下发到前端**。使用前必须先完成邮箱验证。
+
+| 方法 | 路径 | 认证 | 请求 | 响应 |
+|---|---|---|---|---|
+| GET | `/v1/agent/status` | 可选 | – | `{ llm, email, verified, emailMasked, remainingToday, perDay, maxTurns, globalRemaining }`。`llm` 和 `email` 表示服务端是否配置了模型密钥和发信服务 |
+| POST | `/v1/agent/email/start` | ✓ | `{ email }` | `{ sent, emailMasked }`。邮件内容是固定模板，只填入验证码 |
+| POST | `/v1/agent/email/verify` | ✓ | `{ email, code }` | `{ verified, emailMasked }`，授权 7 天 |
+| POST | `/v1/agent/chat` | ✓ + 已验证 | 首轮：`{ date?, people?, budgetTotal?, likes?, maxStops?, sessionId?, message? ≤300 }`；追问：`{ threadId, message }` | `{ engine:'deepseek-llm-v1', threadId, turn, maxTurns, remainingToday, reply, tip, draft \| null, rationale, estTotal }`。`draft` 可以直接 POST /v1/sessions |
+
+**防滥用（按检查顺序）**
+
+| 层 | 规则 | 超限返回 |
+|---|---|---|
+| 身份 | 需要 token，并且邮箱已验证 | 401 `UNAUTHORIZED` / 403 `EMAIL_NOT_VERIFIED` |
+| 单登录 | `agent_grants` 以 email 为主键，同一邮箱同一时间只绑定一个用户，新验证会顶掉旧的；同一用户也只保留最后验证的那个邮箱 | 被顶掉的一方返回 403 `EMAIL_NOT_VERIFIED` |
+| 发信 | 同一邮箱 60 秒 1 封；每用户每小时 5 封；每 IP 每小时 10 封；全站每天 150 封；验证码 10 分钟有效，最多错 5 次，服务端只存 sha256 | 429 `RATE_LIMITED` / `DAILY_LIMIT` / `TOO_MANY_ATTEMPTS` |
+| 全站熔断 | 全站每天最多 200 次模型调用 | 429 `GLOBAL_LIMIT` |
+| 每日额度 | 每个邮箱每天 10 次（按邮箱计，换账号不能重置） | 429 `DAILY_LIMIT` |
+| 并发 | 同一邮箱同时只能有 1 个进行中的请求（D1 条件 UPSERT 锁，45 秒超时） | 429 `BUSY` |
+| 轮次 | 每个对话最多 5 次回复 | 409 `TURN_LIMIT` |
+| 输入 / 输出 | 用户输入 ≤ 300 字；`max_tokens` 700；`response_format: json_object` | 400 `BAD_REQUEST` |
+| 提示词 | system prompt 写死在服务端，客户端无法传入 system 消息；上下文和用户输入分别包在 `<data>` / `<request>` 中，并声明只是数据、不是指令 | – |
+| 输出校验 | 只接受地点库里的 id；去重；站数不超过 `maxStops`；时间格式非法时回退默认值；超预算就从最后一站开始删 | – |
+
+计数器使用 D1 条件 UPSERT（单语句原子），不用 KV：KV 每天只能写 1000 次，而且是最终一致，做不了锁。上游失败时会退还本次额度。
+
+**给模型的上下文**：地点库（名称、类型、区域、室内外、人均、营业时间、简介、标签、坐标），每个地点当天 10/13/16/19 点的温度和降水概率（经 §5.9 代理并缓存），最近 24 条公开局里的攻略和打卡文字（每条截断到 60 字），请求者昵称、偏好和去过的地点；如果带了 `sessionId` 且请求者是成员，还会加上成员昵称和他们去过的地点类型。**邮箱永远不会发给模型。**
 
 ## 6. 前端集成要求（给前端 agent）
 
@@ -192,7 +223,8 @@ type SessionSummary = {                            // 信息流卡片
 | 1 | `*.workers.dev` 在中国大陆经常无法访问 | 绑定自定义域名（任何一个接入 Cloudflare 的域名，加一条 Worker route），前端的 `API_BASE` 只改一个常量 |
 | 2 | R2 未开通（需要在 dashboard 绑卡开通） | 开通后把 §5.8 的两个 handler 换成 R2 binding，接口不变 |
 | 3 | 没有实时推送 | 用 Durable Objects + WebSocket 做局内实时，放在 v0.3 |
-| 4 | AI 局长是规则版 | v0.3 用 Worker secret 存 key，调 LLM，接口不变 |
+| 4 | ~~AI 局长是规则版~~ | 已接入 DeepSeek（§5.11），规则版保留为兜底 |
+| 5 | 发送验证码需要第三方发信服务 | 支持 Resend 或 Brevo，配置 secret 即可启用（§9） |
 
 ## 9. 运维
 
@@ -206,3 +238,15 @@ npm run migrate:remote       # 新增 migrations/000N_*.sql 后执行
 npm run seed:remote          # 更新地点坐标或演示数据（幂等）
 npx wrangler tail            # 线上日志
 ```
+
+**Secrets**（不写进 wrangler.jsonc，也不进仓库；本地开发放在 `backend/.dev.vars`，这个文件已被 gitignore）：
+
+```bash
+npx wrangler secret put DEEPSEEK_API_KEY      # 必填，AI 局长才会启用
+npx wrangler secret put MAIL_FROM             # 发件地址
+npx wrangler secret put RESEND_API_KEY        # 二选一：Resend（要给发件域名做验证）
+npx wrangler secret put BREVO_API_KEY         # 二选一：Brevo（单个发件邮箱验证即可，不需要域名）
+# 可选：DEEPSEEK_MODEL（默认 deepseek-chat）、DEEPSEEK_BASE_URL
+```
+
+本地开发时，在 `.dev.vars` 里设 `EMAIL_DEV_ECHO=1`：请求打到 localhost 时，验证码会直接出现在响应里，不用真的发邮件。线上（非 localhost）这个开关永远不生效。

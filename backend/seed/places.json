@@ -1,18 +1,272 @@
 [
-  { "id": "a1",  "city": "上海", "name": "西岸美术馆 · 蓬皮杜典藏展：色彩的边界", "category": "展览",     "district": "徐汇滨江",        "lat": 31.1706, "lon": 121.4596, "indoor": true,  "avgCost": 100 },
-  { "id": "a2",  "city": "上海", "name": "安福路周末古着市集｜80 个摊位",         "category": "市集",     "district": "徐汇 · 安福路",   "lat": 31.2118, "lon": 121.4455, "indoor": false, "avgCost": 0 },
-  { "id": "a3",  "city": "上海", "name": "MAO Livehouse · 独立乐队拼盘夜",       "category": "演出",     "district": "黄浦 · 重庆南路", "lat": 31.2105, "lon": 121.4745, "indoor": true,  "avgCost": 150 },
-  { "id": "a4",  "city": "上海", "name": "佘山国家森林公园 · 半日轻徒步",         "category": "徒步",     "district": "松江 · 佘山",     "lat": 31.0960, "lon": 121.1930, "indoor": false, "avgCost": 30 },
-  { "id": "a5",  "city": "上海", "name": "M50 创意园 · 开放工作室日",             "category": "展览",     "district": "普陀 · 莫干山路", "lat": 31.2480, "lon": 121.4460, "indoor": true,  "avgCost": 0 },
-  { "id": "a6",  "city": "上海", "name": "陶艺体验 · 2 小时拉坯课",               "category": "手作",     "district": "静安 · 愚园路",   "lat": 31.2215, "lon": 121.4330, "indoor": true,  "avgCost": 168 },
-  { "id": "a7",  "city": "上海", "name": "武康路—衡山路 梧桐区 Citywalk",         "category": "Citywalk", "district": "徐汇 · 衡复风貌区", "lat": 31.2050, "lon": 121.4380, "indoor": false, "avgCost": 0 },
-  { "id": "a8",  "city": "上海", "name": "云南路美食街 · 30 元吃撑路线",           "category": "美食探店", "district": "黄浦 · 云南南路", "lat": 31.2285, "lon": 121.4800, "indoor": false, "avgCost": 40 },
-  { "id": "a9",  "city": "上海", "name": "室内攀岩 · 新手体验课",                 "category": "运动",     "district": "长宁 · 虹桥",     "lat": 31.1980, "lon": 121.4050, "indoor": true,  "avgCost": 128 },
-  { "id": "a10", "city": "上海", "name": "上海大剧院 · 学生专场音乐会",           "category": "演出",     "district": "黄浦 · 人民广场", "lat": 31.2305, "lon": 121.4700, "indoor": true,  "avgCost": 80 },
-  { "id": "a11", "city": "上海", "name": "世纪公园 · 草坪野餐 + 飞盘局",           "category": "运动",     "district": "浦东 · 世纪公园", "lat": 31.2150, "lon": 121.5480, "indoor": false, "avgCost": 10 },
-  { "id": "a12", "city": "上海", "name": "UCCA Edge · 沉浸式数字艺术展",          "category": "展览",     "district": "静安 · 苏河湾",   "lat": 31.2440, "lon": 121.4760, "indoor": true,  "avgCost": 128 },
-  { "id": "a13", "city": "上海", "name": "上生·新所 周日农夫市集",                "category": "市集",     "district": "长宁 · 延安西路", "lat": 31.2130, "lon": 121.4200, "indoor": false, "avgCost": 0 },
-  { "id": "a14", "city": "上海", "name": "滨江骑行 · 杨浦段 12km",                "category": "运动",     "district": "杨浦滨江",        "lat": 31.2560, "lon": 121.5320, "indoor": false, "avgCost": 15 },
-  { "id": "a15", "city": "上海", "name": "即兴喜剧开放麦",                        "category": "演出",     "district": "静安 · 石门一路", "lat": 31.2295, "lon": 121.4600, "indoor": true,  "avgCost": 60 },
-  { "id": "a16", "city": "上海", "name": "朱家角古镇 · 一日游",                   "category": "Citywalk", "district": "青浦 · 朱家角",   "lat": 31.1080, "lon": 121.0550, "indoor": false, "avgCost": 50 }
+  {
+    "id": "a1",
+    "city": "上海",
+    "name": "西岸美术馆 · 蓬皮杜典藏展：色彩的边界",
+    "category": "展览",
+    "district": "徐汇滨江",
+    "lat": 31.1706,
+    "lon": 121.4596,
+    "indoor": true,
+    "avgCost": 100,
+    "blurb": "蓬皮杜中心典藏轮换展，40+ 件现代艺术原作。学生证半价，周六下午人最多，建议上午去。",
+    "openHours": "10:00–18:00（周一闭馆）",
+    "tags": [
+      "学生半价",
+      "拍照出片"
+    ]
+  },
+  {
+    "id": "a2",
+    "city": "上海",
+    "name": "安福路周末古着市集｜80 个摊位",
+    "category": "市集",
+    "district": "徐汇 · 安福路",
+    "lat": 31.2118,
+    "lon": 121.4455,
+    "indoor": false,
+    "avgCost": 0,
+    "blurb": "古着、黑胶、手作饰品。免费入场，现场有咖啡车。下雨会取消，出门前看公众号通知。",
+    "openHours": "周六 11:00–20:00",
+    "tags": [
+      "免费",
+      "适合逛吃"
+    ]
+  },
+  {
+    "id": "a3",
+    "city": "上海",
+    "name": "MAO Livehouse · 独立乐队拼盘夜",
+    "category": "演出",
+    "district": "黄浦 · 重庆南路",
+    "lat": 31.2105,
+    "lon": 121.4745,
+    "indoor": true,
+    "avgCost": 150,
+    "blurb": "三支新晋独立乐队，站票 150。结束约 22:30，地铁末班车来得及。",
+    "openHours": "周六 20:00 开演",
+    "tags": [
+      "夜场",
+      "站票"
+    ]
+  },
+  {
+    "id": "a4",
+    "city": "上海",
+    "name": "佘山国家森林公园 · 半日轻徒步",
+    "category": "徒步",
+    "district": "松江 · 佘山",
+    "lat": 31.096,
+    "lon": 121.193,
+    "indoor": false,
+    "avgCost": 30,
+    "blurb": "9 号线直达，全程 6km 爬升 200m，新手友好。山顶可以看到天文台。",
+    "openHours": "全天",
+    "tags": [
+      "地铁直达",
+      "新手友好"
+    ]
+  },
+  {
+    "id": "a5",
+    "city": "上海",
+    "name": "M50 创意园 · 开放工作室日",
+    "category": "展览",
+    "district": "普陀 · 莫干山路",
+    "lat": 31.248,
+    "lon": 121.446,
+    "indoor": true,
+    "avgCost": 0,
+    "blurb": "20+ 艺术家工作室对外开放，能和创作者聊天。免费，室内为主。",
+    "openHours": "周日 13:00–18:00",
+    "tags": [
+      "免费",
+      "室内"
+    ]
+  },
+  {
+    "id": "a6",
+    "city": "上海",
+    "name": "陶艺体验 · 2 小时拉坯课",
+    "category": "手作",
+    "district": "静安 · 愚园路",
+    "lat": 31.2215,
+    "lon": 121.433,
+    "indoor": true,
+    "avgCost": 168,
+    "blurb": "老师一对四，作品烧制后 3 周可取或邮寄。双人同行第二位 8 折。",
+    "openHours": "14:00 / 16:30 两场",
+    "tags": [
+      "双人优惠",
+      "雨天友好"
+    ]
+  },
+  {
+    "id": "a7",
+    "city": "上海",
+    "name": "武康路—衡山路 梧桐区 Citywalk",
+    "category": "Citywalk",
+    "district": "徐汇 · 衡复风貌区",
+    "lat": 31.205,
+    "lon": 121.438,
+    "indoor": false,
+    "avgCost": 0,
+    "blurb": "约 4km，武康大楼 → 巴金故居 → 衡山坊。秋天梧桐叶黄，下午光线最好。",
+    "openHours": "随时",
+    "tags": [
+      "免费",
+      "秋季限定"
+    ]
+  },
+  {
+    "id": "a8",
+    "city": "上海",
+    "name": "云南路美食街 · 30 元吃撑路线",
+    "category": "美食探店",
+    "district": "黄浦 · 云南南路",
+    "lat": 31.2285,
+    "lon": 121.48,
+    "indoor": false,
+    "avgCost": 40,
+    "blurb": "鲜得来排骨年糕、生煎、小馄饨。人均 40 能吃 5 家，周末晚饭点排队较长。",
+    "openHours": "11:00–22:00",
+    "tags": [
+      "学生党",
+      "人均 40"
+    ]
+  },
+  {
+    "id": "a9",
+    "city": "上海",
+    "name": "室内攀岩 · 新手体验课",
+    "category": "运动",
+    "district": "长宁 · 虹桥",
+    "lat": 31.198,
+    "lon": 121.405,
+    "indoor": true,
+    "avgCost": 128,
+    "blurb": "含装备和 1 小时教练带练，3 人以上团购价 98/人。",
+    "openHours": "10:00–22:00",
+    "tags": [
+      "团购更省",
+      "雨天友好"
+    ]
+  },
+  {
+    "id": "a10",
+    "city": "上海",
+    "name": "上海大剧院 · 学生专场音乐会",
+    "category": "演出",
+    "district": "黄浦 · 人民广场",
+    "lat": 31.2305,
+    "lon": 121.47,
+    "indoor": true,
+    "avgCost": 80,
+    "blurb": "德沃夏克《新世界》，学生凭证 80 元，需提前 3 天预约。",
+    "openHours": "周日 19:30",
+    "tags": [
+      "学生专场"
+    ]
+  },
+  {
+    "id": "a11",
+    "city": "上海",
+    "name": "世纪公园 · 草坪野餐 + 飞盘局",
+    "category": "运动",
+    "district": "浦东 · 世纪公园",
+    "lat": 31.215,
+    "lon": 121.548,
+    "indoor": false,
+    "avgCost": 10,
+    "blurb": "门票 10 元，7 号门附近草坪最大。人多才好玩，适合拉群组队。",
+    "openHours": "7:00–18:00",
+    "tags": [
+      "人越多越好玩"
+    ]
+  },
+  {
+    "id": "a12",
+    "city": "上海",
+    "name": "UCCA Edge · 沉浸式数字艺术展",
+    "category": "展览",
+    "district": "静安 · 苏河湾",
+    "lat": 31.244,
+    "lon": 121.476,
+    "indoor": true,
+    "avgCost": 128,
+    "blurb": "光影装置 + 声音艺术，时长约 1 小时。晚上 7 点后人少。",
+    "openHours": "10:00–21:00",
+    "tags": [
+      "雨天友好",
+      "出片"
+    ]
+  },
+  {
+    "id": "a13",
+    "city": "上海",
+    "name": "上生·新所 周日农夫市集",
+    "category": "市集",
+    "district": "长宁 · 延安西路",
+    "lat": 31.213,
+    "lon": 121.42,
+    "indoor": false,
+    "avgCost": 0,
+    "blurb": "有机蔬果、手工面包、咖啡。游泳池旁草坪可以坐。",
+    "openHours": "周日 10:00–16:00",
+    "tags": [
+      "免费",
+      "早起"
+    ]
+  },
+  {
+    "id": "a14",
+    "city": "上海",
+    "name": "滨江骑行 · 杨浦段 12km",
+    "category": "运动",
+    "district": "杨浦滨江",
+    "lat": 31.256,
+    "lon": 121.532,
+    "indoor": false,
+    "avgCost": 15,
+    "blurb": "共享单车即可，沿江绿道全程无车。日落时段可以看到杨浦大桥。",
+    "openHours": "全天",
+    "tags": [
+      "日落",
+      "低预算"
+    ]
+  },
+  {
+    "id": "a15",
+    "city": "上海",
+    "name": "即兴喜剧开放麦",
+    "category": "演出",
+    "district": "静安 · 石门一路",
+    "lat": 31.2295,
+    "lon": 121.46,
+    "indoor": true,
+    "avgCost": 60,
+    "blurb": "10 位演员轮番上场，现场互动多。含一杯饮料。",
+    "openHours": "周六 19:00",
+    "tags": [
+      "社交",
+      "室内"
+    ]
+  },
+  {
+    "id": "a16",
+    "city": "上海",
+    "name": "朱家角古镇 · 一日游",
+    "category": "Citywalk",
+    "district": "青浦 · 朱家角",
+    "lat": 31.108,
+    "lon": 121.055,
+    "indoor": false,
+    "avgCost": 50,
+    "blurb": "17 号线直达，摇橹船 30 元/人，扎肉粽必吃。避开周六中午人潮。",
+    "openHours": "全天",
+    "tags": [
+      "地铁直达",
+      "古镇"
+    ]
+  }
 ]

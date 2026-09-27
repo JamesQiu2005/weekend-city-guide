@@ -1,7 +1,9 @@
 // 周末去哪* API client (RFC-001). Plain script, no modules: exposes window.API.
 // Copy to the frontend root and load before app.js.
 (function () {
-  const API_BASE = "https://weekend-api.weekend-api.workers.dev"; // swap to the custom domain once it exists (RFC §8)
+  // swap to the custom domain once it exists (RFC §8). On localhost only, localStorage.wk2_api_base can point at `wrangler dev`.
+  const API_BASE = (() => { try { return /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && localStorage.getItem("wk2_api_base"); } catch { return null; } })()
+    || "https://weekend-api.weekend-api.workers.dev";
   const AUTH_KEY = "wk2_auth";
 
   const store = {
@@ -81,6 +83,11 @@
     upload: (blob) => call("POST", "/v1/media", blob, { raw: true, timeout: 20000 }),
     weather: (lat, lon, date) => call("GET", "/v1/weather" + q({ lat, lon, date })),
     plan: (body) => call("POST", "/v1/agent/plan", body),
+    // AI 局长（LLM，RFC-001 §5.11）：先邮箱验证，再对话。密钥只在服务端。
+    agentStatus: () => call("GET", "/v1/agent/status"),
+    agentEmailStart: (email) => call("POST", "/v1/agent/email/start", { email }),
+    agentEmailVerify: (email, code) => call("POST", "/v1/agent/email/verify", { email, code }),
+    agentChat: (body) => call("POST", "/v1/agent/chat", body, { timeout: 40000 }),
 
     /** Current position as {lat, lon, accuracy}, or null if denied/unavailable (5s). */
     locate() {

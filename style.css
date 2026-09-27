@@ -472,3 +472,8 @@ a { color: inherit; }
 .mode { display: inline-block; font-size: 11px; font-weight: 800; color: var(--gray); margin-bottom: 6px; }
 .mode.on { color: #3d6b00; }
 .local-tag { font-size: 10px; font-weight: 800; color: var(--gray); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; margin-right: 6px; }
+.agent-quota { font-size: 12px; font-weight: 700; color: #3d6b00; background: #f2ffe0; padding: 8px 10px; border-radius: 10px; margin-top: 4px; }
+.agent-turn { margin-top: 12px; }
+.agent-me { margin-left: auto; width: fit-content; max-width: 85%; background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 14px 14px 4px 14px; margin-bottom: 8px; }
+.agent-bubble { background: var(--plate); font-size: 14px; line-height: 1.6; padding: 10px 12px; border-radius: 14px 14px 14px 4px; }
+.agent-err { margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--liked); }
