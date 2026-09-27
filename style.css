@@ -469,3 +469,6 @@ a { color: inherit; }
 .agent-stop .reasons { margin-top: 4px; }
 .btn-sm { white-space: nowrap; flex: none; }
 .io { white-space: nowrap; flex: none; }
+.mode { display: inline-block; font-size: 11px; font-weight: 800; color: var(--gray); margin-bottom: 6px; }
+.mode.on { color: #3d6b00; }
+.local-tag { font-size: 10px; font-weight: 800; color: var(--gray); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; margin-right: 6px; }
