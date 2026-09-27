@@ -1,2 +1,4 @@
 .DS_Store
 NEXT_AGENT.md
+.env
+.env.*
