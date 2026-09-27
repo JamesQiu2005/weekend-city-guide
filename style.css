@@ -506,3 +506,13 @@ body[data-route="map"] #app { overflow: hidden; }
 /* 定位按钮放到筛选条下方的右上角，打开迷你卡时不会被挡住 */
 .loc-btn { top: 122px; bottom: auto; }
 .hello { padding: 4px var(--gutter) 0; }
+
+/* 横向滚动区的药丸滑块（hscroll.js，只在鼠标设备上出现） */
+.hbar { position: relative; height: 8px; margin: 2px var(--gutter) 8px; border-radius: 999px; background: var(--paper-2); cursor: pointer; }
+.hbar[hidden] { display: none; }
+.hbar-thumb { position: absolute; top: 0; left: 0; height: 8px; border-radius: 999px; background: var(--ink); cursor: grab; transition: background .15s; }
+.hbar-thumb:hover, .hbar-thumb.drag { background: var(--ink); box-shadow: 0 0 0 2px var(--acid); }
+.hbar-thumb.drag { cursor: grabbing; }
+.chips + .hbar { margin-top: -2px; }
+.map-top .hbar { pointer-events: auto; }
+.rail, .gallery { scroll-padding-inline: var(--gutter); }

@@ -325,6 +325,22 @@ test("离线快照链接：另一个人能打开并加入", async (browser) => {
   await audit(b.page, "加入后的局");
 });
 
+test("鼠标用户：横向滚动区有药丸滑块，拖动 / 滚轮都能横着滚", async (browser) => {
+  const { page } = await newCtx(browser, { width: 1280, net: { weather: "ok" } });
+  await skipOnboarding(page);
+  await page.waitForSelector(".conds + .hbar .hbar-thumb", { state: "visible" });
+  const left = () => page.$eval(".conds", (e) => e.scrollLeft);
+  const t = await page.$eval(".conds + .hbar .hbar-thumb", (e) => { const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+  await page.mouse.move(t.x, t.y); await page.mouse.down(); await page.mouse.move(t.x + 120, t.y, { steps: 6 }); await page.mouse.up();
+  expect(await left() > 40, "拖动药丸后筛选条没有横向滚动");
+  await page.waitForSelector(".rail + .hbar .hbar-thumb", { state: "visible" });
+  const r = await page.$eval(".rail", (e) => { const b = e.getBoundingClientRect(); return { x: b.x + 100, y: b.y + 60 }; });
+  await page.mouse.move(r.x, r.y); await page.mouse.wheel(0, 300); await page.waitForTimeout(200);
+  expect(await page.$eval(".rail", (e) => e.scrollLeft) > 100, "在「在招人的局」上滚动滚轮没有横向滚动");
+  await page.goto(BASE + "#/place/a7"); await page.waitForSelector(".gallery + .hbar .hbar-thumb", { state: "visible" });
+  await audit(page, "地点页（鼠标）");
+});
+
 test("所有主要页面：无报错、版面正常", async (browser) => {
   const { page } = await newCtx(browser, { net: { weather: "ok", leaflet: "ok", tiles: "ok" } });
   await skipOnboarding(page);
