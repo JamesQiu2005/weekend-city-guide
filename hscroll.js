@@ -33,10 +33,10 @@
     const thumb = bar.firstChild;
     thumb.addEventListener("pointerdown", (e) => {
       e.preventDefault(); e.stopPropagation();
-      thumb.setPointerCapture(e.pointerId); thumb.classList.add("drag");
+      thumb.setPointerCapture(e.pointerId); thumb.classList.add("is-grabbed");
       const x0 = e.clientX, s0 = el.scrollLeft, ratio = (el.scrollWidth - el.clientWidth) / (bar.clientWidth - thumb.offsetWidth || 1);
       const move = (ev) => { el.scrollLeft = s0 + (ev.clientX - x0) * ratio; };
-      const up = () => { thumb.classList.remove("drag"); thumb.removeEventListener("pointermove", move); thumb.removeEventListener("pointerup", up); };
+      const up = () => { thumb.classList.remove("is-grabbed"); thumb.removeEventListener("pointermove", move); thumb.removeEventListener("pointerup", up); };
       thumb.addEventListener("pointermove", move); thumb.addEventListener("pointerup", up);
     });
     // 点轨道：跳到那个位置

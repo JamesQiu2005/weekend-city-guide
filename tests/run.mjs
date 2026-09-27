@@ -331,7 +331,13 @@ test("鼠标用户：横向滚动区有药丸滑块，拖动 / 滚轮都能横�
   await page.waitForSelector(".conds + .hbar .hbar-thumb", { state: "visible" });
   const left = () => page.$eval(".conds", (e) => e.scrollLeft);
   const t = await page.$eval(".conds + .hbar .hbar-thumb", (e) => { const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
-  await page.mouse.move(t.x, t.y); await page.mouse.down(); await page.mouse.move(t.x + 120, t.y, { steps: 6 }); await page.mouse.up();
+  const h = () => page.$eval(".conds + .hbar .hbar-thumb", (e) => Math.round(e.getBoundingClientRect().height));
+  const h0 = await h();
+  await page.mouse.move(t.x, t.y); await page.mouse.down(); await page.mouse.move(t.x + 60, t.y, { steps: 3 });
+  const h1 = await h();
+  // 历史 bug：拖动时加的 .drag 类撞上了编辑器拖动把手的 .drag { padding: 16px 0 }，药丸被撑到 40px
+  expect(h1 === h0, `拖动时药丸高度从 ${h0}px 变成了 ${h1}px`);
+  await page.mouse.move(t.x + 120, t.y, { steps: 3 }); await page.mouse.up();
   expect(await left() > 40, "拖动药丸后筛选条没有横向滚动");
   await page.waitForSelector(".rail + .hbar .hbar-thumb", { state: "visible" });
   const r = await page.$eval(".rail", (e) => { const b = e.getBoundingClientRect(); return { x: b.x + 100, y: b.y + 60 }; });
