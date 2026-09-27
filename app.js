@@ -508,7 +508,7 @@ function renderOnboarding() {
   const body = {
     nick: `<input class="big-in" maxlength="12" placeholder="昵称" value="${esc(onb.nick)}" oninput="onb.nick=this.value;onbValid()" autofocus>`,
     gender: [["female", "女生"], ["male", "男生"], ["na", "不想说"]].map(([v, l]) => opt(v, onb.gender, l, `onb.gender='${v}';renderOnboarding()`)).join(""),
-    age: `<div class="age-row"><button class="step-btn" onclick="onb.age=Math.max(16,(+onb.age||20)-1);renderOnboarding()">−</button><input class="big-in num" type="number" min="16" max="40" inputmode="numeric" placeholder="20" value="${esc(onb.age)}" oninput="onb.age=+this.value||'';onbValid()"><button class="step-btn" onclick="onb.age=Math.min(40,(+onb.age||20)+1);renderOnboarding()">＋</button></div>`,
+    age: `<div class="age-row"><button class="step-btn" onclick="onb.age=Math.max(16,(+onb.age||20)-1);renderOnboarding()">−</button><input class="big-in age-in" type="number" min="16" max="40" inputmode="numeric" placeholder="20" value="${esc(onb.age)}" oninput="onb.age=+this.value||'';onbValid()"><button class="step-btn" onclick="onb.age=Math.min(40,(+onb.age||20)+1);renderOnboarding()">＋</button></div>`,
     school: `<input class="big-in" maxlength="20" placeholder="学校名称" value="${esc(onb.school)}" oninput="onb.school=this.value;onbValid()">
       <div class="chip-cloud">${[...UNIVERSITIES, "已经毕业了"].map((u) => `<button class="chip ${onb.school === u ? "on" : ""}" onclick="onb.school='${u}';renderOnboarding()">${u}</button>`).join("")}</div>`,
     prompt: `<textarea class="big-in area" maxlength="40" placeholder="比如：睡到自然醒，下午去看个展，晚上吃一顿好的" oninput="onb.prompt=this.value">${esc(onb.prompt)}</textarea>`,
