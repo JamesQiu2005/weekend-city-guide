@@ -15,6 +15,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { extname, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { findCollisions } from "./class-collisions.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ART = join(ROOT, "tests", "artifacts");
@@ -128,6 +129,11 @@ const skipOnboarding = async (page) => { await page.goto(BASE); await page.click
 const cases = [];
 const test = (name, fn) => cases.push({ name, fn });
 
+test("静态检查：没有类名撞车（同一元素上两个类都单独定义尺寸）", async () => {
+  const p = findCollisions();
+  expect(!p.length, "类名冲突：\n    " + p.join("\n    "));
+});
+
 for (const width of [375, 1280]) {
   test(`引导九步：每一步版面正常（${width}px）`, async (browser) => {
     const { page } = await newCtx(browser, { width, net: { weather: "ok", leaflet: "ok", tiles: "ok" }, geo: { latitude: 31.2150, longitude: 121.4460 } });
@@ -141,22 +147,44 @@ for (const width of [375, 1280]) {
   });
 }
 
-test("编辑资料：重新走一遍引导，每一步版面正常且带着原来的值", async (browser) => {
+test("编辑资料：单独一页，带出原来的值，改完保存后资料和局里的成员信息都更新", async (browser) => {
   const { page } = await newCtx(browser, { net: { weather: "ok" } });
   await page.goto(BASE); await onboardAll(page, "首次"); await page.click('button:has-text("以后再说")');
+  await page.goto(BASE + "#/new?place=a7"); await page.click(".action-bar .cta"); await page.waitForSelector("#shareLink"); await page.keyboard.press("Escape");
+  const sessionUrl = page.url();
   await page.goto(BASE + "#/me"); await page.click('button:has-text("编辑资料")');
-  expect(await page.inputValue(".big-in") === "测试员", "编辑资料第 1 步没有带出原来的昵称");
-  await audit(page, "编辑资料 第 1 步"); await page.click("#onbNext");
-  await audit(page, "编辑资料 第 2 步"); await page.click("#onbNext");
-  await audit(page, "编辑资料 第 3 步");
-  expect(await page.inputValue(".age-row .big-in") === "21", "编辑资料第 3 步没有带出原来的年龄");
-  const w = await page.$eval(".age-row .big-in", (e) => e.getBoundingClientRect().width);
-  expect(w > 120, `编辑资料第 3 步年龄输入框只有 ${Math.round(w)}px 宽`);
-  await shot(page, "edit-age");
-  for (let i = 4; i <= 9; i++) { await page.click("#onbNext"); await audit(page, `编辑资料 第 ${i} 步`); }
+  await page.waitForURL(/#\/profile/);
+  expect(!(await page.$(".onb")), "编辑资料又进入了九步引导");
+  await audit(page, "编辑资料页");
+  await shot(page, "profile-edit");
+  expect(await page.inputValue(".pe-name") === "测试员", "编辑页没有带出原来的昵称");
+  expect(await page.textContent("#peAge") === "21", "编辑页没有带出原来的年龄");
+  expect(await page.inputValue("#peSchool") === "上海纽约大学", "编辑页没有带出原来的学校");
+  expect(await page.$eval("#peSave", (b) => b.disabled), "没有改动时保存按钮应该不可点");
+  // 改几项
+  await page.click('.stepper.pe-age button[aria-label="加一岁"]');
+  await page.click('.pe-schools .chip:has-text("复旦大学")');
+  await page.click('.pe-card .chip:has-text("不想说")');
+  await page.click('.pe-card .chip:has-text("市集")');
+  await page.fill(".pe-name", "");
+  expect(await page.$eval("#peSave", (b) => b.disabled), "名字为空时保存按钮应该不可点");
+  await page.fill(".pe-name", "新名字");
+  await audit(page, "编辑资料页（修改中）");
+  await page.click("#peSave");
+  await page.waitForURL(/#\/me/);
+  const p = await page.evaluate(() => S.prefs);
+  expect(p.nick === "新名字" && p.age === 22 && p.school === "复旦大学" && p.gender === "na" && p.likes.includes("市集"), "保存后资料不对：" + JSON.stringify(p));
+  expect((await page.textContent(".profile")).includes("22 · 复旦大学"), "「我」页面没有显示新资料");
+  await page.goto(sessionUrl);
+  const me = await page.textContent(".people");
+  expect(me.includes("新名字") && me.includes("22 · 复旦大学"), "局里「同行的人」没有同步新资料：" + me.slice(0, 80));
+  // 完成引导后访问 #/onboarding 应该被带到编辑页
+  await page.goto(BASE + "#/onboarding"); await page.waitForURL(/#\/profile/);
+  // 有未保存修改时关闭要确认（测试里自动确认）
+  await page.fill(".pe-name", "临时");
+  await page.click('button[aria-label="关闭"]');
   noErrors(page, "编辑资料");
 });
-
 test("先逛逛：示例偏好要说明白，不能说「你喜欢…」", async (browser) => {
   const { page } = await newCtx(browser, { net: { weather: "ok" } });
   await skipOnboarding(page);
@@ -167,7 +195,11 @@ test("先逛逛：示例偏好要说明白，不能说「你喜欢…」", async
   expect(!reasons.some((r) => r.includes("你喜欢")), "示例偏好下仍然出现「你喜欢…」：" + reasons.find((r) => r.includes("你喜欢")));
   await audit(page, "发现页（示例偏好）");
   await page.click('.pref-bar button:has-text("改成我的")');
-  expect(/#\/onboarding/.test(page.url()), "「改成我的」没有进入引导");
+  await page.waitForURL(/#\/profile/);
+  await page.click('.pe-card .chip:has-text("徒步")');
+  await page.click("#peSave");
+  await page.goto(BASE + "#/discover"); await page.waitForSelector(".pc .prompt-a");
+  expect((await page.textContent(".pref-bar")).includes("按你的偏好推荐"), "在编辑页保存后，仍然标着示例偏好");
 });
 
 test("天气理由和天气数据一致（周六 70%、周日 20%）", async (browser) => {
@@ -320,7 +352,7 @@ test("离线快照链接：另一个人能打开并加入", async (browser) => {
   await b.page.click('button:has-text("加入这个局")');
   await b.page.click("button.browse");
   await b.page.waitForURL(/#\/session\//);
-  const people = await b.page.$$eval(".person:not(.empty) .person-main b", (x) => x.map((e) => e.textContent));
+  const people = await b.page.$$eval(".person:not(.person-vacant) .person-main b", (x) => x.map((e) => e.textContent));
   expect(people.length === 2 && people.includes("测试路人"), "加入后成员列表不对：" + people.join("、"));
   await audit(b.page, "加入后的局");
 });
@@ -350,7 +382,7 @@ test("鼠标用户：横向滚动区有药丸滑块，拖动 / 滚轮都能横�
 test("所有主要页面：无报错、版面正常", async (browser) => {
   const { page } = await newCtx(browser, { net: { weather: "ok", leaflet: "ok", tiles: "ok" } });
   await skipOnboarding(page);
-  for (const r of ["#/discover", "#/place/a8", "#/session/g11", "#/session/s6", "#/new?place=a12", "#/sessions", "#/me"]) {
+  for (const r of ["#/discover", "#/place/a8", "#/session/g11", "#/session/s6", "#/new?place=a12", "#/sessions", "#/profile", "#/me"]) {
     await page.goto(BASE + r); await page.waitForTimeout(400); await audit(page, r);
   }
   for (const seg of ["收藏", "关于"]) { await page.click(`.seg button:has-text("${seg}")`); await audit(page, `#/me ${seg}`); }
@@ -373,7 +405,7 @@ if (process.env.ONLINE) {
       await b.page.click('button:has-text("加入这个局")'); await b.page.click("button.browse");
       await b.page.waitForURL(/#\/session\//);
       await a.page.reload(); await a.page.waitForTimeout(1500);
-      expect(await a.page.$$eval(".person:not(.empty)", (x) => x.length) === 2, "组织者看不到新加入的人");
+      expect(await a.page.$$eval(".person:not(.person-vacant)", (x) => x.length) === 2, "组织者看不到新加入的人");
     } finally {
       for (const id of created) await a.page.evaluate((i) => API.deleteSession(i).catch(() => {}), id);
     }

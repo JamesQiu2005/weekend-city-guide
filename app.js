@@ -461,10 +461,11 @@ let MAP = null;
 function render() {
   const r = route();
   if (!S.prefs?.done && !["onboarding", "s", "session"].includes(r.name)) { location.replace("#/onboarding"); return; }
+  if (r.name === "onboarding" && S.prefs?.done) { location.replace("#/profile"); return; }
   if (r.name !== "map" && MAP) { MAP.remove(); MAP = null; }
   const view = {
     onboarding: renderOnboarding, discover: renderDiscover, map: renderMap, place: renderPlace, session: renderSession, s: renderShared,
-    new: renderEditor, edit: renderEditor, sessions: renderSessions, trail: () => { S.ui.meSeg = "trail"; renderMe(); }, me: renderMe,
+    new: renderEditor, edit: renderEditor, sessions: renderSessions, profile: renderProfile, trail: () => { S.ui.meSeg = "trail"; renderMe(); }, me: renderMe,
   }[r.name] || renderDiscover;
   document.body.dataset.route = r.name;
   view(r.arg, r.query);
@@ -584,13 +585,95 @@ function finishOnb(dest) {
 }
 function sessionStorage_get(k) { try { const v = sessionStorage.getItem(k); sessionStorage.removeItem(k); return v; } catch { return null; } }
 
+// ---------- 编辑资料：完成引导之后，改资料用这一页，不再重走九步 ----------
+let PE = null;   // 编辑中的副本
+const peFields = (p) => ({ nick: p.nick || "", gender: p.gender || "", age: p.age || "", school: p.school || "", prompt: p.prompt || "", likes: [...(p.likes || [])], budget: p.budget ?? 100, groupSize: p.groupSize || 2 });
+function peDirty() { return JSON.stringify(PE.v) !== JSON.stringify(PE.orig); }
+function peValid() { const v = PE.v; return v.nick.trim() && v.likes.length && (v.age === "" || (v.age >= 16 && v.age <= 40)); }
+function peSync() {
+  const b = $("#peSave"); if (b) { b.disabled = !peDirty() || !peValid(); b.textContent = !peValid() ? (PE.v.nick.trim() ? "至少选一个想玩的" : "名字不能为空") : peDirty() ? "保存" : "没有改动"; }
+  const a = $("#peAv"); if (a) a.outerHTML = av({ name: PE.v.nick || "?" }, "xl").replace('class="av', 'id="peAv" class="av');
+  const c = $("#pePromptN"); if (c) c.textContent = `${[...PE.v.prompt].length}/40`;
+  const g = $("#peAge"); if (g) g.textContent = PE.v.age || "未填";
+}
+function pePick(el, key, val) { PE.v[key] = val; el.parentElement.querySelectorAll(".chip, button").forEach((x) => x.classList.remove("on")); el.classList.add("on"); peSync(); }
+function peLike(el, t) { const L = PE.v.likes; PE.v.likes = L.includes(t) ? L.filter((x) => x !== t) : [...L, t]; el.classList.toggle("on", PE.v.likes.includes(t)); peSync(); }
+function peAge(d) { PE.v.age = Math.min(40, Math.max(16, (+PE.v.age || 20) + (PE.v.age === "" ? 0 : d))); peSync(); }
+function peSchool(u) { PE.v.school = u; const i = $("#peSchool"); if (i) i.value = u; document.querySelectorAll(".pe-schools .chip").forEach((c) => c.classList.toggle("on", c.textContent === u)); peSync(); }
+function renderProfile() {
+  if (!PE || PE._for !== location.hash) { const v = peFields(S.prefs); PE = { v, orig: JSON.parse(JSON.stringify(v)), _for: location.hash }; }
+  const v = PE.v, one = (key, opts) => `<div class="chip-cloud">${opts.map(([val, l]) => `<button class="chip ${String(v[key]) === String(val) ? "on" : ""}" onclick='pePick(this,"${key}",${JSON.stringify(val)})'>${l}</button>`).join("")}</div>`;
+  $("#view").innerHTML = `<div class="page pe-page">
+    <header class="top"><button class="icon-btn" onclick="peClose()" aria-label="关闭">${ICON.close}</button><b class="pe-h">编辑资料</b><span class="pe-spacer"></span></header>
+    <section class="pe-hero">
+      ${av({ name: v.nick || "?" }, "xl").replace('class="av', 'id="peAv" class="av')}
+      <input class="big-in pe-name" maxlength="12" placeholder="昵称" value="${esc(v.nick)}" oninput="PE.v.nick=this.value;peSync()" aria-label="昵称">
+      <span class="kicker">局里的朋友会看到这个名字</span>
+    </section>
+
+    <section class="pe-card">
+      <h2 class="pe-t">关于我</h2>
+      <div class="pe-row pe-col"><div class="pe-label"><b>性别</b><small>只用来让推荐更合适，不会展示</small></div>
+        ${one("gender", [["female", "女生"], ["male", "男生"], ["na", "不想说"]])}</div>
+      <div class="pe-row"><div class="pe-label"><b>年龄</b><small>会显示在资料上</small></div>
+        <div class="stepper pe-age"><button onclick="peAge(-1)" aria-label="减一岁">−</button><b id="peAge">${v.age || "未填"}</b><button onclick="peAge(1)" aria-label="加一岁">＋</button></div></div>
+      <div class="pe-row pe-col"><div class="pe-label"><b>学校</b><small>会显示在资料上</small></div>
+        <input class="input" id="peSchool" maxlength="20" placeholder="学校名称" value="${esc(v.school)}" oninput="PE.v.school=this.value;peSync()">
+        <div class="chip-cloud pe-schools">${[...UNIVERSITIES, "已经毕业了"].map((u) => `<button class="chip ${v.school === u ? "on" : ""}" onclick="peSchool('${u}')">${u}</button>`).join("")}</div></div>
+    </section>
+
+    <section class="pe-card">
+      <h2 class="pe-t">一个理想的周末是……</h2>
+      <textarea class="input pe-prompt" maxlength="40" placeholder="比如：睡到自然醒，下午去看个展，晚上吃一顿好的" oninput="PE.v.prompt=this.value;peSync()">${esc(v.prompt)}</textarea>
+      <div class="pe-count kicker" id="pePromptN">${[...v.prompt].length}/40</div>
+    </section>
+
+    <section class="pe-card">
+      <h2 class="pe-t">周末偏好 <small>推荐会按这里排序</small></h2>
+      <div class="pe-row pe-col"><div class="pe-label"><b>想玩什么</b><small>多选，至少一个</small></div>
+        <div class="chip-cloud">${TYPES.map((t) => `<button class="chip ${v.likes.includes(t) ? "on" : ""}" onclick="peLike(this,'${t}')">${t}</button>`).join("")}</div></div>
+      <div class="pe-row pe-col"><div class="pe-label"><b>人均预算</b></div>${one("budget", BUDGETS.map((b) => [b.value, b.label]))}</div>
+      <div class="pe-row pe-col"><div class="pe-label"><b>一般几个人</b></div>${one("groupSize", GROUPS.map((g) => [g.value, g.label]))}</div>
+    </section>
+
+    <section class="pe-card" id="peLoc">${peLocHtml()}</section>
+    </div>
+    <div class="action-bar"><button class="cta acid" id="peSave" onclick="peSave()" disabled>没有改动</button></div>`;
+  peSync();
+}
+function peLocHtml() {
+  const l = S.loc, mins = l ? Math.max(1, Math.round((Date.now() - l.at) / 6e4)) : 0;
+  return `<h2 class="pe-t">定位 <small>即时生效，不用点保存</small></h2>
+    <div class="pe-row"><div class="pe-label"><b>${l ? "已开启" : "未开启"}</b><small>${l ? `精度约 ${l.acc || "?"}m · ${mins < 60 ? mins + " 分钟" : Math.round(mins / 60) + " 小时"}前更新 · 只存在本机` : "开启后会把离你近的地方排前面，并在地图上标出你"}</small></div>
+      <div class="pe-btns">${l ? `<button class="cta sm ghost" onclick="peLocate(this)">${ICON.locate} 更新</button><button class="cta sm ghost" onclick="peLocOff()">关闭</button>` : `<button class="cta sm acid" onclick="peLocate(this)">${ICON.locate} 开启</button>`}</div></div>`;
+}
+async function peLocate(btn) { btn.disabled = true; const r = await requestLocation(); if (r.error) toast(r.error); else toast("位置已更新"); const el = $("#peLoc"); if (el) el.innerHTML = peLocHtml(); }
+function peLocOff() { S.loc = null; try { localStorage.removeItem(KEYS.loc); } catch {} toast("已关闭定位，本机记录的位置已删除"); const el = $("#peLoc"); if (el) el.innerHTML = peLocHtml(); }
+function peClose() {
+  if (peDirty() && !confirm("有修改还没保存，确定放弃吗？")) return;
+  PE = null; history.length > 1 ? history.back() : go("#/me");
+}
+function peSave() {
+  if (!peDirty() || !peValid()) return;
+  const v = PE.v;
+  // 在这一页保存过，偏好就是用户自己确认过的，不再是「示例偏好」
+  S.prefs = { ...S.prefs, nick: v.nick.trim(), gender: v.gender, age: v.age === "" ? "" : +v.age, school: v.school.trim(), prompt: v.prompt.trim(), likes: v.likes, budget: v.budget, groupSize: v.groupSize, demo: false };
+  persist("prefs");
+  S.sessions.forEach((s) => s.members.forEach((m) => { if (m.uid === S.prefs.uid) Object.assign(m, meRef()); }));
+  persist("sessions");
+  if (online() && API.auth) API.updateMe({ name: S.prefs.nick, avatar: S.prefs.avatar }).catch(() => {});
+  toast("资料已保存");
+  PE = null;
+  history.length > 1 ? history.back() : go("#/me");
+}
+
 // ---------- 发现 ----------
 const LAYERS = [["rec", "推荐"], ["join", "可加入的局"], ["guide", "攻略"]];
 const CONDS = ["雨天也能去", "免费", ...TYPES];
 function prefBar() {
   const p = S.prefs;
   const txt = `${p.likes.join("、")} · 人均${BUDGETS.find((b) => b.value === p.budget)?.label || ""} · ${GROUPS.find((g) => g.value === p.groupSize)?.label || ""}`;
-  return `<div class="pref-bar ${p.demo ? "demo" : ""}"><span><b>${p.demo ? "按示例偏好推荐" : "按你的偏好推荐"}</b>${esc(txt)}</span><button class="cta sm ${p.demo ? "acid" : "ghost"}" onclick="go('#/onboarding')">${p.demo ? "改成我的" : "改"}</button></div>`;
+  return `<div class="pref-bar ${p.demo ? "demo" : ""}"><span><b>${p.demo ? "按示例偏好推荐" : "按你的偏好推荐"}</b>${esc(txt)}</span><button class="cta sm ${p.demo ? "acid" : "ghost"}" onclick="go('#/profile')">${p.demo ? "改成我的" : "改"}</button></div>`;
 }
 function renderDiscover() {
   $("#view").innerHTML = `<div class="page">
@@ -831,7 +914,7 @@ function budgetBar(total, est, actual, cap, mode) {
 function renderSeats() {
   const el = $("#seats"); if (!el) return;
   const ms = D.members || [{ ...meRef(), role: "organizer" }];
-  el.innerHTML = `<div class="seats">${ms.map((m) => av(m, "lg")).join("")}${Array.from({ length: Math.max(0, D.cap - ms.length) }, () => `<span class="av lg empty"></span>`).join("")}</div><div class="hint">${ms.length}/${D.cap} · 开局后发链接邀请</div>`;
+  el.innerHTML = `<div class="seats">${ms.map((m) => av(m, "lg")).join("")}${Array.from({ length: Math.max(0, D.cap - ms.length) }, () => `<span class="av lg av-vacant"></span>`).join("")}</div><div class="hint">${ms.length}/${D.cap} · 开局后发链接邀请</div>`;
 }
 function dragStart(ev, i) {
   ev.preventDefault();
@@ -958,7 +1041,7 @@ function renderSession(id, _q, snap) {
 
     <h2 class="sec">同行的人 <small>${s.members.length}/${s.cap}</small></h2>
     <div class="people">${s.members.map((m) => { const pf = profileOf(m), line = profileLine(m); return `<div class="person">${av(m, "lg")}<div class="person-main"><b>${esc(m.name || "成员")}</b>${line ? `<span class="kicker">${esc(line)}</span>` : ""}${pf.prompt ? `<p>“${esc(pf.prompt)}”</p>` : ""}</div>${m.role === "organizer" ? sticker("发起人", "paper") : ""}</div>`; }).join("")}
-      ${Array.from({ length: Math.max(0, s.cap - s.members.length) }, () => `<div class="person empty">${`<span class="av lg empty"></span>`}<div class="person-main"><b>空位</b><span class="kicker">等一个人</span></div></div>`).join("")}</div>
+      ${Array.from({ length: Math.max(0, s.cap - s.members.length) }, () => `<div class="person person-vacant">${`<span class="av lg av-vacant"></span>`}<div class="person-main"><b>空位</b><span class="kicker">等一个人</span></div></div>`).join("")}</div>
 
     <h2 class="sec">路线 <small>${ci.length ? `${new Set(ci.map((e) => e.author)).size} 人打过卡` : st === "planning" ? "当天开放打卡" : ""}</small></h2>
     <div class="route">
@@ -991,7 +1074,7 @@ function renderSession(id, _q, snap) {
 function sessionActions(s, st, member, org, full, snap) {
   const liked = !!S.likes[s.id], saved = !!S.saves[s.id];
   const ab = (fn, ico, label, cls = "") => `<button class="ab ${cls}" onclick="${fn}">${ICON[ico]}<small>${label}</small></button>`;
-  const likeBtn = `<button class="ab like ${liked ? "on" : ""}" onclick="toggleLike('${s.id}',this)">${liked ? ICON.heartOn : ICON.heart}<small class="n">${fmt((s.likes || 0) + (liked ? 1 : 0))}</small></button>`;
+  const likeBtn = `<button class="ab ab-like ${liked ? "on" : ""}" onclick="toggleLike('${s.id}',this)">${liked ? ICON.heartOn : ICON.heart}<small class="n">${fmt((s.likes || 0) + (liked ? 1 : 0))}</small></button>`;
   const share = s.visibility !== "private" ? ab(`shareSession('${s.id}')`, "share", "分享") : ab(`openVisibility('${s.id}')`, "lock", "私密");
   if (!member) {
     if (st === "done") return `${likeBtn}${ab(`toggleSave('${s.id}',this)`, saved ? "starOn" : "star", "收藏", saved ? "on" : "")}${ab("copy(location.href)", "share", "分享")}
@@ -1344,7 +1427,7 @@ function renderMe() {
   }
   const line = [p.age, p.school, "上海"].filter(Boolean).join(" · ");
   $("#view").innerHTML = `<div class="page">
-    <header class="top"><span class="brand">我<i>*</i></span><div class="top-actions"><button class="cta sm ghost" onclick="go('#/onboarding')">${ICON.edit} 编辑资料</button></div></header>
+    <header class="top"><span class="brand">我<i>*</i></span><div class="top-actions"><button class="cta sm ghost" onclick="go('#/profile')">${ICON.edit} 编辑资料</button></div></header>
     <section class="profile">
       ${av({ name: p.nick }, "xl")}
       <h1 class="prof-name">${esc(p.nick)}</h1>
